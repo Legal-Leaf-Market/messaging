@@ -41,3 +41,11 @@ To rename how someone appears, go to **Table Editor > profiles** and edit `displ
 - Messages are encrypted while being sent and while stored on Supabase. Because they sit on the server for up to 24 hours, you, as the project owner, could see them in the dashboard during that time.
 - Supabase's free plan doesn't keep backups, so deleted messages are gone for good. Paid plans do keep daily backups, and those could hold deleted messages for a while.
 - Free Supabase projects pause after a week with no activity. Open the site or the dashboard to wake one up.
+
+## Ringing, alerts and the app
+- **Ringing:** calls ring through the database's live feed, so the other person's screen rings with a ringtone (and vibrates on Android) whenever the app is open. The caller hears a ringback tone.
+- **Alerts:** incoming calls, missed calls and new messages send a push notification, even when the app is closed. Message alerts never include the text.
+- **Install the app:**
+  - **iPhone (iOS 16.4+):** open the page in Safari, tap **Share**, then **Add to Home Screen**. Open **Private Line** from the Home Screen, sign in, and tap **Turn on**. iPhone only delivers alerts to the Home Screen app.
+  - **Android / desktop Chrome:** tap **Install** in the app, or use the browser's install icon, then **Turn on** alerts.
+- **Backend pieces:** `setup-push.sql` adds the device list and the alert trigger. `supabase/functions/push` is the function that sends alerts. Its signing key is generated automatically and stored in the database, so there are no secrets to manage.
