@@ -63,11 +63,22 @@
   </form>
 </section>
 
+<section id="reset" class="hidden" style="min-height:100%;display:grid;place-items:center;padding:16px">
+  <form id="resetForm" style="width:100%;max-width:340px;background:var(--panel);padding:24px;border-radius:16px;display:grid;gap:12px">
+    <h1 style="margin:0 0 4px;font-size:20px">Set a new password</h1>
+    <input id="np1" type="password" placeholder="New password (8+ characters)" autocomplete="new-password" minlength="8" required>
+    <input id="np2" type="password" placeholder="Type it again" autocomplete="new-password" minlength="8" required>
+    <button class="primary" type="submit">Save password</button>
+    <button type="button" id="resetCancel">Cancel</button>
+    <div class="err" id="resetErr"></div>
+  </form>
+</section>
+
 <section id="app" class="hidden">
   <aside id="side">
     <header>
       <div><strong id="meName"></strong><small>Your line</small></div>
-      <button id="logout">Sign out</button>
+      <div style="display:flex;gap:6px"><button id="pwBtn" title="Change password">Password</button><button id="logout">Sign out</button></div>
     </header>
     <div id="contacts"></div>
   </aside>
@@ -109,7 +120,7 @@
 /* ===== SETTINGS — Supabase project URL + publishable key (safe to be public) ===== */
 const SUPABASE_URL      = 'https://xppyedslhbrnqnymaaxb.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_m_BQ-HC1v3-JANssdXJRlA_9TphYPCM';
-const LOGIN_DOMAIN      = 'lines.crossroadsweddingco.shop'; // users are created as username@this-domain
+const LOGIN_DOMAIN      = 'crossroadsweddingco.shop'; // users are created as username@this-domain (full email also works)
 /* ================================================================== */
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -130,15 +141,44 @@ let pendingIncoming = null;
 /* ---------- auth ---------- */
 $('loginForm').onsubmit = async e => {
   e.preventDefault(); $('loginErr').textContent = '';
-  const email = $('u').value.trim().toLowerCase() + '@' + LOGIN_DOMAIN;
+  const u = $('u').value.trim().toLowerCase();
+  const email = u.includes('@') ? u : u + '@' + LOGIN_DOMAIN;
   const { error } = await sb.auth.signInWithPassword({ email, password: $('p').value });
   if (error) $('loginErr').textContent = 'Wrong username or password.';
 };
+
+/* ---------- password reset / change ---------- */
+let recovering = /type=recovery/.test(location.hash); // opened from a reset email
+function showReset() {
+  $('login').classList.add('hidden'); $('app').classList.add('hidden');
+  $('reset').classList.remove('hidden'); $('resetErr').textContent = ''; $('np1').focus();
+}
+$('pwBtn').onclick = showReset;
+$('resetCancel').onclick = () => {
+  $('reset').classList.add('hidden');
+  if (me) $('app').classList.remove('hidden'); else $('login').classList.remove('hidden');
+};
+$('resetForm').onsubmit = async e => {
+  e.preventDefault();
+  if ($('np1').value !== $('np2').value) { $('resetErr').textContent = "Passwords don't match."; return; }
+  const { error } = await sb.auth.updateUser({ password: $('np1').value });
+  if (error) { $('resetErr').textContent = error.message; return; }
+  $('np1').value = $('np2').value = ''; recovering = false;
+  history.replaceState(null, '', location.pathname);
+  $('reset').classList.add('hidden');
+  const { data } = await sb.auth.getSession();
+  if (me) $('app').classList.remove('hidden'); else if (data.session) start(data.session.user.id);
+};
 $('logout').onclick = async () => { destroyPeer(); await sb.auth.signOut(); location.reload(); };
 
-sb.auth.onAuthStateChange((_evt, session) => {
-  if (session && !me) start(session.user.id);
-  if (!session) { $('login').classList.remove('hidden'); $('app').classList.add('hidden'); }
+sb.auth.onAuthStateChange((evt, session) => {
+  // setTimeout: never call Supabase from inside this callback (it can hang the client)
+  setTimeout(() => {
+    if (evt === 'PASSWORD_RECOVERY') { recovering = true; showReset(); return; }
+    if (recovering) return;
+    if (session && !me) start(session.user.id);
+    if (!session) { $('login').classList.remove('hidden'); $('app').classList.add('hidden'); }
+  }, 0);
 });
 
 async function start(uid) {
