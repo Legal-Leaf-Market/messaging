@@ -104,7 +104,7 @@
     <div id="installBar" class="bar hidden"></div>
     <div id="alertBar" class="bar hidden"></div>
     <div id="contacts"></div>
-    <div id="ver">Private Line v6 · alerts: <span id="alertState">checking…</span></div>
+    <div id="ver">Private Line v7 · alerts: <span id="alertState">checking…</span></div>
   </aside>
   <main id="chat">
     <header>
@@ -152,6 +152,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_m_BQ-HC1v3-JANssdXJRlA_9TphYPCM';
 const LOGIN_DOMAIN      = 'crossroadsweddingco.shop'; // users are created as username@this-domain (full email also works)
 /* ================================================================================= */
 
+const APP_VERSION = 'v7';
 const DAY = 24 * 60 * 60 * 1000;
 const RING_MS = 60000;
 const PEER_PREFIX = 'crwco-line-';
@@ -374,12 +375,20 @@ setInterval(async () => {
   try {
     if (cur && cur.id) {
       const { data } = await sb.from('calls').select('*').eq('id', cur.id).maybeSingle();
-      if (data && cur && cur.id === data.id && data.status !== cur.lastSeen) { cur.lastSeen = data.status; onCallRow(data); }
+      if (data && cur && cur.id === data.id && data.status !== cur.lastSeen) { cur.lastSeen = data.status; dbg('status ' + data.status + ' (check)'); onCallRow(data); }
     } else await checkRinging();
   } catch {} finally { polling = false; }
 }, 2000);
+async function checkForUpdate() {
+  try {
+    const v = (await fetch('/messaging/version.txt', { cache: 'no-store' }).then(r => r.ok ? r.text() : '')).trim();
+    if (v && v !== APP_VERSION && !cur) location.reload();
+  } catch {}
+}
+checkForUpdate();
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) return;
+  checkForUpdate();
   checkRinging(); closeNotifications();
   if (me && !cur && peer && (peer.disconnected || !peer.open)) { destroyPeer(); startPeer(); }
 });
@@ -581,7 +590,7 @@ async function placeCall(kind) {
   const { data, error } = await sb.from('calls').insert({ callee: activeId, kind }).select().single();
   if (error) { local.getTracks().forEach(t => t.stop()); alert(error.message); return; }
   cur = { id: data.id, role: 'caller', kind, other: activeId, local, peerPromise };
-  dbg('calling (' + (STANDALONE ? 'app' : 'browser') + ', ' + (IOS ? 'iOS' : 'other') + ')');
+  dbg('calling (' + APP_VERSION + ', ' + (STANDALONE ? 'app' : 'browser') + ', ' + (IOS ? 'iOS' : 'other') + ')');
   $('localVideo').srcObject = local;
   showCall('Ringing…', 'outgoing'); startTone('ringback');
   cur.timer = setTimeout(async () => {
@@ -616,7 +625,7 @@ function onCallRow(c) {
     cur = { id: c.id, role: 'callee', kind: c.kind, other: c.caller };
     showCall(`Incoming ${c.kind === 'video' ? 'video' : 'voice'} call`, 'incoming');
     $('answerBtn').disabled = false; $('answerBtn').textContent = 'Answer';
-    dbg('ringing shown (' + (document.hidden ? 'hidden' : 'visible') + ', ' + (STANDALONE ? 'app' : 'browser') + ', ' + (IOS ? 'iOS' : 'other') + ')');
+    dbg('ringing shown (' + APP_VERSION + ', ' + (document.hidden ? 'hidden' : 'visible') + ', ' + (STANDALONE ? 'app' : 'browser') + ', ' + (IOS ? 'iOS' : 'other') + ')');
     startTone('ring');
     cur.timer = setTimeout(() => { if (cur && cur.id === c.id && !cur.answeredHere) endLocal(); }, RING_MS + 2000);
     return;
