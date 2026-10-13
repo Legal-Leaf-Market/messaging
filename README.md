@@ -23,7 +23,7 @@ Backend: Supabase project `crossroads-private-line` (already set up; `setup.sql`
 
 ## 3. Create a line for each person
 In Supabase, go to **Authentication > Users > Add user > Create new user**:
-- **Email:** `username@lines.crossroadsweddingco.shop`. For example, `maria@lines.crossroadsweddingco.shop` logs in as **maria**. The address doesn't need to be a real email.
+- **Email:** `username@crossroadsweddingco.shop`. For example, `maria@crossroadsweddingco.shop` logs in as **maria**. The address doesn't need to be a real email.
 - **Password:** whatever you choose.
 - Check **Auto Confirm User**.
 
