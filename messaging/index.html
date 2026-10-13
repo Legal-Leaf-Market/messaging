@@ -31,6 +31,8 @@
   #side{background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
   #side header{padding:calc(14px + var(--st)) 16px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:8px}
   #side header small{color:var(--muted);display:block}
+  .hbtns{display:flex;gap:6px} .hbtns button{padding:8px 10px;font-size:13px}
+  #ver{padding:10px 16px calc(10px + var(--sb));color:var(--muted);font-size:11px;border-top:1px solid var(--line)}
   .bar{margin:10px;padding:12px;border-radius:12px;background:#1f2633;font-size:13px;display:grid;gap:8px}
   .bar b{font-size:14px}
   #contacts{overflow:auto;flex:1}
@@ -93,11 +95,12 @@
   <aside id="side">
     <header>
       <div><strong id="meName"></strong><small>Your line</small></div>
-      <div style="display:flex;gap:6px"><button id="pwBtn" title="Change password">Password</button><button id="logout">Sign out</button></div>
+      <div class="hbtns"><button id="alertsBtn">Alerts</button><button id="pwBtn" title="Change password">Password</button><button id="logout">Sign out</button></div>
     </header>
     <div id="installBar" class="bar hidden"></div>
     <div id="alertBar" class="bar hidden"></div>
     <div id="contacts"></div>
+    <div id="ver">Private Line v3 · alerts: <span id="alertState">checking…</span></div>
   </aside>
   <main id="chat">
     <header>
@@ -217,7 +220,10 @@ async function start(uid) {
   if (!me) { alert('This login has no line yet.'); return; }
   $('meName').textContent = me.display_name;
   $('login').classList.add('hidden'); $('app').classList.remove('hidden');
-  renderContacts(); subscribe(); startPeer(); setupPush(false); renderInstall();
+  // Each step is isolated so one failure (e.g. on a phone) can't stop the others.
+  for (const [name, fn] of [['contacts', renderContacts], ['live', subscribe], ['calls', startPeer], ['alerts', () => setupPush(false)], ['install', renderInstall]]) {
+    try { const r = fn(); if (r && r.catch) r.catch(e => showErr(name, e)); } catch (e) { showErr(name, e); }
+  }
   setInterval(prune, 30000);
   closeNotifications();
   // Opened from a notification?
@@ -406,7 +412,16 @@ async function setupPush(ask) {
     alertBar('on');
   } catch (e) { console.warn('push', e); alertBar('error'); }
 }
+function showErr(where, e) {
+  console.error(where, e);
+  const b = $('alertBar'); b.classList.remove('hidden');
+  const d = document.createElement('div'); d.style.color = 'var(--danger)';
+  d.textContent = `Problem (${where}): ${e && e.message || e}`; b.append(d);
+}
+$('alertsBtn').onclick = () => setupPush(true);
 function alertBar(state) {
+  $('alertState').textContent = { on: 'on', off: 'off', denied: 'blocked', 'ios-install': 'needs Home Screen app', unsupported: 'not supported', error: 'error' }[state] || state;
+  $('alertsBtn').textContent = state === 'on' ? 'Alerts on' : 'Alerts';
   const b = $('alertBar');
   const msg = {
     off: ['Turn on call alerts', 'Get a ring and notifications for calls and messages, even when this app is closed.', 'Turn on'],
