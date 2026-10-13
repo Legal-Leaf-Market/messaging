@@ -3,46 +3,61 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: mediastream:; connect-src 'self' https://xppyedslhbrnqnymaaxb.supabase.co wss://xppyedslhbrnqnymaaxb.supabase.co https://0.peerjs.com wss://0.peerjs.com; frame-ancestors 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: mediastream:; connect-src 'self' https://xppyedslhbrnqnymaaxb.supabase.co wss://xppyedslhbrnqnymaaxb.supabase.co https://0.peerjs.com wss://0.peerjs.com; worker-src 'self'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'">
 <title>Crossroads Private Line</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#0f1115">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Private Line">
 <style>
-  :root{--bg:#0f1115;--panel:#171a21;--line:#262b35;--text:#e9ecf1;--muted:#8b93a3;--me:#3b6cf6;--them:#262b35;--accent:#3b6cf6;--danger:#e5484d;--ok:#30a46c}
-  *{box-sizing:border-box}
+  :root{--bg:#0f1115;--panel:#171a21;--line:#262b35;--text:#e9ecf1;--muted:#8b93a3;--me:#3b6cf6;--them:#262b35;--accent:#3b6cf6;--danger:#e5484d;--ok:#30a46c;
+        --st:env(safe-area-inset-top,0px);--sb:env(safe-area-inset-bottom,0px)}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:15px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
   button{font:inherit;cursor:pointer;border:0;border-radius:10px;padding:10px 14px;background:var(--line);color:var(--text)}
   button.primary{background:var(--accent)} button.danger{background:var(--danger)} button.ok{background:var(--ok)}
   button:disabled{opacity:.5;cursor:default}
-  input{font:inherit;width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text)}
+  input{font:inherit;font-size:16px;width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text)}
   .hidden{display:none!important}
-  /* login */
-  #login{min-height:100%;display:grid;place-items:center;padding:16px}
-  #login form{width:100%;max-width:340px;background:var(--panel);padding:24px;border-radius:16px;display:grid;gap:12px}
-  #login h1{margin:0 0 4px;font-size:20px} .err{color:var(--danger);font-size:13px;min-height:1em}
+  .card{width:100%;max-width:340px;background:var(--panel);padding:24px;border-radius:16px;display:grid;gap:12px}
+  .card h1{margin:0 0 4px;font-size:20px} .err{color:var(--danger);font-size:13px;min-height:1em}
+  .screen{min-height:100%;display:grid;place-items:center;padding:calc(16px + var(--st)) 16px calc(16px + var(--sb))}
   /* app */
-  #app{display:grid;grid-template-columns:280px 1fr;height:100dvh}
+  #app{display:grid;grid-template-columns:300px 1fr;height:100dvh}
   #side{background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
-  #side header{padding:16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:8px}
+  #side header{padding:calc(14px + var(--st)) 16px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:8px}
   #side header small{color:var(--muted);display:block}
+  .bar{margin:10px;padding:12px;border-radius:12px;background:#1f2633;font-size:13px;display:grid;gap:8px}
+  .bar b{font-size:14px}
   #contacts{overflow:auto;flex:1}
   .contact{padding:14px 16px;border-bottom:1px solid var(--line);cursor:pointer;display:flex;justify-content:space-between;align-items:center}
   .contact.active{background:#1f2430} .contact .dot{width:9px;height:9px;border-radius:50%;background:var(--accent)}
   #chat{display:flex;flex-direction:column;min-height:0}
-  #chat header{padding:12px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
-  #chat header .name{flex:1;font-weight:600}
+  #chat header{padding:calc(10px + var(--st)) 12px 10px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:6px}
+  #chat header .name{flex:1;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #chat header button{padding:9px 11px}
   #back{display:none}
-  #timeline{flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:6px}
-  .bubble{max-width:75%;padding:8px 12px;border-radius:16px;background:var(--them);white-space:pre-wrap;word-wrap:break-word}
+  #timeline{flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:6px;-webkit-overflow-scrolling:touch}
+  .bubble{max-width:78%;padding:8px 12px;border-radius:16px;background:var(--them);white-space:pre-wrap;word-wrap:break-word}
   .bubble.me{align-self:flex-end;background:var(--me)}
   .bubble .meta{font-size:11px;opacity:.65;margin-top:2px}
   .sys{align-self:center;color:var(--muted);font-size:13px;padding:4px 10px;border:1px solid var(--line);border-radius:999px}
-  #empty{margin:auto;color:var(--muted);text-align:center;padding:16px}
-  #composer{display:flex;gap:8px;padding:12px;border-top:1px solid var(--line)}
+  .empty{margin:auto;color:var(--muted);text-align:center;padding:16px}
+  #composer{display:flex;gap:8px;padding:10px 12px calc(10px + var(--sb));border-top:1px solid var(--line)}
   /* call overlay */
-  #callUI{position:fixed;inset:0;background:#000d;display:grid;place-items:center;z-index:10;padding:16px}
-  #callBox{width:100%;max-width:720px;display:grid;gap:12px;text-align:center}
+  #callUI{position:fixed;inset:0;background:#05070bf2;display:grid;place-items:center;z-index:10;padding:calc(16px + var(--st)) 16px calc(16px + var(--sb))}
+  #callBox{width:100%;max-width:720px;display:grid;gap:14px;text-align:center}
+  #callAvatar{width:96px;height:96px;border-radius:50%;background:var(--accent);margin:0 auto;display:grid;place-items:center;font-size:40px;font-weight:700}
+  #callUI.ringing #callAvatar{animation:pulse 1.2s ease-in-out infinite}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 #3b6cf688}50%{box-shadow:0 0 0 22px #3b6cf600}}
   #callBox video{width:100%;background:#000;border-radius:12px;max-height:60vh}
-  #localVideo{position:fixed;right:16px;bottom:100px;width:120px!important;border-radius:10px}
-  #callBtns{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+  #localVideo{position:fixed;right:16px;bottom:calc(110px + var(--sb));width:110px!important;border-radius:10px;z-index:11}
+  #callBtns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+  #callBtns button{min-width:96px;padding:14px 18px;border-radius:999px}
   @media (max-width:720px){
     #app{grid-template-columns:1fr}
     #app.in-chat #side{display:none} #app:not(.in-chat) #chat{display:none}
@@ -52,20 +67,20 @@
 </head>
 <body>
 
-<section id="login">
-  <form id="loginForm">
+<section id="login" class="screen">
+  <form id="loginForm" class="card">
     <h1>Private line</h1>
     <div style="color:var(--muted);font-size:13px">Messages and calls disappear after 24 hours.</div>
-    <input id="u" placeholder="Username" autocomplete="username" autocapitalize="none" required>
+    <input id="u" placeholder="Username" autocomplete="username" autocapitalize="none" autocorrect="off" required>
     <input id="p" type="password" placeholder="Password" autocomplete="current-password" required>
     <button class="primary" type="submit">Sign in</button>
     <div class="err" id="loginErr"></div>
   </form>
 </section>
 
-<section id="reset" class="hidden" style="min-height:100%;display:grid;place-items:center;padding:16px">
-  <form id="resetForm" style="width:100%;max-width:340px;background:var(--panel);padding:24px;border-radius:16px;display:grid;gap:12px">
-    <h1 style="margin:0 0 4px;font-size:20px">Set a new password</h1>
+<section id="reset" class="screen hidden">
+  <form id="resetForm" class="card">
+    <h1>Set a new password</h1>
     <input id="np1" type="password" placeholder="New password (8+ characters)" autocomplete="new-password" minlength="8" required>
     <input id="np2" type="password" placeholder="Type it again" autocomplete="new-password" minlength="8" required>
     <button class="primary" type="submit">Save password</button>
@@ -80,17 +95,19 @@
       <div><strong id="meName"></strong><small>Your line</small></div>
       <div style="display:flex;gap:6px"><button id="pwBtn" title="Change password">Password</button><button id="logout">Sign out</button></div>
     </header>
+    <div id="installBar" class="bar hidden"></div>
+    <div id="alertBar" class="bar hidden"></div>
     <div id="contacts"></div>
   </aside>
   <main id="chat">
     <header>
-      <button id="back">&larr;</button>
+      <button id="back" aria-label="Back">&larr;</button>
       <span class="name" id="chatName">Pick a line</span>
       <button id="callBtn" disabled>Call</button>
       <button id="videoBtn" disabled>Video</button>
-      <button id="clearBtn" class="danger" disabled title="Delete this conversation for both of you now">Self-destruct</button>
+      <button id="clearBtn" class="danger" disabled title="Delete this conversation for both of you now">Wipe</button>
     </header>
-    <div id="timeline"><div id="empty">Choose someone on the left to start.</div></div>
+    <div id="timeline"><div class="empty">Choose someone to start.</div></div>
     <form id="composer">
       <input id="msg" placeholder="Message (disappears in 24h)" autocomplete="off" disabled>
       <button class="primary" id="sendBtn" disabled>Send</button>
@@ -100,16 +117,17 @@
 
 <div id="callUI" class="hidden">
   <div id="callBox">
-    <div id="callTitle" style="font-size:20px;font-weight:600"></div>
+    <div id="callAvatar"></div>
+    <div id="callTitle" style="font-size:22px;font-weight:600"></div>
     <div id="callStatus" style="color:var(--muted)"></div>
     <video id="remoteVideo" autoplay playsinline></video>
     <video id="localVideo" autoplay playsinline muted></video>
     <div id="callBtns">
-      <button class="ok" id="answerBtn">Answer</button>
       <button class="danger" id="declineBtn">Decline</button>
+      <button class="ok" id="answerBtn">Answer</button>
       <button id="muteBtn">Mute</button>
       <button id="camBtn">Camera off</button>
-      <button class="danger" id="hangBtn">End call</button>
+      <button class="danger" id="hangBtn">End</button>
     </div>
   </div>
 </div>
@@ -121,34 +139,45 @@
 const SUPABASE_URL      = 'https://xppyedslhbrnqnymaaxb.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_m_BQ-HC1v3-JANssdXJRlA_9TphYPCM';
 const LOGIN_DOMAIN      = 'crossroadsweddingco.shop'; // users are created as username@this-domain (full email also works)
-/* ================================================================== */
+/* ================================================================================= */
 
 const DAY = 24 * 60 * 60 * 1000;
+const RING_MS = 40000;
 const PEER_PREFIX = 'crwco-line-';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const $ = id => document.getElementById(id);
+const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const STANDALONE = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const params = new URLSearchParams(location.search);
 
-let me = null;            // my profile
-let lines = {};           // id -> profile
-let activeId = null;      // who I'm chatting with
-let msgs = [];            // messages for active chat
-let calls = [];           // calls for active chat
-let unread = new Set();
+let me = null, lines = {}, activeId = null, msgs = [], calls = [], unread = new Set();
 let peer = null;
-let cur = null;           // current call {id, role, kind, peerCall, local, timer}
-let pendingIncoming = null;
+let cur = null; // {id, role:'caller'|'callee', kind, other, local, peerCall, answeredHere, connected, timer}
+let swReg = null;
+
+/* ---------- service worker (installable app + push) ---------- */
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js', { scope: './' }).then(r => swReg = r).catch(e => console.warn('sw', e));
+}
 
 /* ---------- auth ---------- */
 $('loginForm').onsubmit = async e => {
-  e.preventDefault(); $('loginErr').textContent = '';
+  e.preventDefault(); $('loginErr').textContent = ''; unlockAudio();
   const u = $('u').value.trim().toLowerCase();
   const email = u.includes('@') ? u : u + '@' + LOGIN_DOMAIN;
   const { error } = await sb.auth.signInWithPassword({ email, password: $('p').value });
   if (error) $('loginErr').textContent = 'Wrong username or password.';
 };
+$('logout').onclick = async () => {
+  try {
+    const sub = swReg && await swReg.pushManager.getSubscription();
+    if (sub) { await sb.rpc('remove_push_subscription', { p_endpoint: sub.endpoint }); await sub.unsubscribe(); }
+  } catch {}
+  destroyPeer(); await sb.auth.signOut(); location.replace(location.pathname);
+};
 
-/* ---------- password reset / change ---------- */
-let recovering = /type=recovery/.test(location.hash); // opened from a reset email
+/* password reset / change */
+let recovering = /type=recovery/.test(location.hash);
 function showReset() {
   $('login').classList.add('hidden'); $('app').classList.add('hidden');
   $('reset').classList.remove('hidden'); $('resetErr').textContent = ''; $('np1').focus();
@@ -156,7 +185,7 @@ function showReset() {
 $('pwBtn').onclick = showReset;
 $('resetCancel').onclick = () => {
   $('reset').classList.add('hidden');
-  if (me) $('app').classList.remove('hidden'); else $('login').classList.remove('hidden');
+  (me ? $('app') : $('login')).classList.remove('hidden');
 };
 $('resetForm').onsubmit = async e => {
   e.preventDefault();
@@ -169,28 +198,33 @@ $('resetForm').onsubmit = async e => {
   const { data } = await sb.auth.getSession();
   if (me) $('app').classList.remove('hidden'); else if (data.session) start(data.session.user.id);
 };
-$('logout').onclick = async () => { destroyPeer(); await sb.auth.signOut(); location.reload(); };
 
 sb.auth.onAuthStateChange((evt, session) => {
-  // setTimeout: never call Supabase from inside this callback (it can hang the client)
-  setTimeout(() => {
+  setTimeout(() => { // never call Supabase from inside this callback
     if (evt === 'PASSWORD_RECOVERY') { recovering = true; showReset(); return; }
     if (recovering) return;
     if (session && !me) start(session.user.id);
-    if (!session) { $('login').classList.remove('hidden'); $('app').classList.add('hidden'); }
+    if (!session && !me) { $('login').classList.remove('hidden'); $('app').classList.add('hidden'); }
   }, 0);
 });
 
 async function start(uid) {
+  if (me) return;
   const { data, error } = await sb.from('profiles').select('*').order('display_name');
   if (error) { alert('Could not load lines: ' + error.message); return; }
   data.forEach(p => lines[p.id] = p);
   me = lines[uid];
-  if (!me) { alert('This login has no line yet. Re-run setup.sql.'); return; }
+  if (!me) { alert('This login has no line yet.'); return; }
   $('meName').textContent = me.display_name;
   $('login').classList.add('hidden'); $('app').classList.remove('hidden');
-  renderContacts(); subscribe(); startPeer();
+  renderContacts(); subscribe(); startPeer(); setupPush(false); renderInstall();
   setInterval(prune, 30000);
+  closeNotifications();
+  // Opened from a notification?
+  const withId = params.get('with');
+  if (withId && lines[withId]) openChat(withId);
+  checkRinging();
+  history.replaceState(null, '', location.pathname);
 }
 
 /* ---------- contacts ---------- */
@@ -204,14 +238,14 @@ function renderContacts() {
     el.onclick = () => openChat(p.id);
     box.append(el);
   });
-  if (box.children.length === 0) box.innerHTML = '<div id="empty">No other lines yet.</div>';
+  if (!box.children.length) box.innerHTML = '<div class="empty">No other lines yet.</div>';
 }
 
 async function openChat(id) {
   activeId = id; unread.delete(id);
   $('app').classList.add('in-chat');
   $('chatName').textContent = lines[id].display_name;
-  ['callBtn','videoBtn','clearBtn','msg','sendBtn'].forEach(b => $(b).disabled = false);
+  ['callBtn', 'videoBtn', 'clearBtn', 'msg', 'sendBtn'].forEach(b => $(b).disabled = false);
   renderContacts();
   const pair = `and(sender.eq.${me.id},recipient.eq.${id}),and(sender.eq.${id},recipient.eq.${me.id})`;
   const cpair = `and(caller.eq.${me.id},callee.eq.${id}),and(caller.eq.${id},callee.eq.${me.id})`;
@@ -222,7 +256,6 @@ async function openChat(id) {
   if (activeId !== id) return;
   msgs = m.data || []; calls = c.data || [];
   render(true);
-  $('msg').focus();
 }
 $('back').onclick = () => { $('app').classList.remove('in-chat'); activeId = null; renderContacts(); };
 
@@ -234,29 +267,25 @@ function left(ts) {
   return h ? `${h}h left` : `${m}m left`;
 }
 const clock = ts => new Date(ts).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-
 function callText(c) {
   const kind = c.kind === 'video' ? 'Video call' : 'Voice call';
   const out = c.caller === me.id;
   if (c.status === 'ringing') return `${kind} ringing…`;
-  if (c.status === 'missed') return out ? `${kind} — no answer` : `Missed ${kind.toLowerCase()}`;
+  if (c.status === 'missed') return out ? `${kind}, no answer` : `Missed ${kind.toLowerCase()}`;
   if (c.status === 'declined') return `${kind} declined`;
   if (c.answered_at && c.ended_at) {
-    const s = Math.round((new Date(c.ended_at) - new Date(c.answered_at)) / 1000);
+    const s = Math.max(0, Math.round((new Date(c.ended_at) - new Date(c.answered_at)) / 1000));
     return `${kind} · ${Math.floor(s / 60)}m ${s % 60}s`;
   }
   return kind;
 }
-
 function render(scroll) {
   const tl = $('timeline');
   const atBottom = tl.scrollHeight - tl.scrollTop - tl.clientHeight < 80;
   tl.innerHTML = '';
-  const items = [
-    ...msgs.map(x => ({ t: x.created_at, m: x })),
-    ...calls.map(x => ({ t: x.started_at, c: x })),
-  ].filter(i => Date.now() - new Date(i.t) < DAY).sort((a, b) => new Date(a.t) - new Date(b.t));
-  if (!items.length) { tl.innerHTML = '<div id="empty">Nothing here. Everything is wiped 24 hours after it’s sent.</div>'; return; }
+  const items = [...msgs.map(x => ({ t: x.created_at, m: x })), ...calls.map(x => ({ t: x.started_at, c: x }))]
+    .filter(i => Date.now() - new Date(i.t) < DAY).sort((a, b) => new Date(a.t) - new Date(b.t));
+  if (!items.length) { tl.innerHTML = '<div class="empty">Nothing here. Everything is wiped 24 hours after it’s sent.</div>'; return; }
   for (const i of items) {
     const el = document.createElement('div');
     if (i.m) {
@@ -264,20 +293,15 @@ function render(scroll) {
       el.textContent = i.m.body;
       const meta = document.createElement('div'); meta.className = 'meta';
       meta.textContent = `${clock(i.t)} · ${left(i.t)}`; el.append(meta);
-    } else {
-      el.className = 'sys'; el.textContent = `${callText(i.c)} · ${clock(i.t)}`;
-    }
+    } else { el.className = 'sys'; el.textContent = `${callText(i.c)} · ${clock(i.t)}`; }
     tl.append(el);
   }
   if (scroll || atBottom) tl.scrollTop = tl.scrollHeight;
 }
-
 function prune() {
-  const before = msgs.length + calls.length;
   msgs = msgs.filter(x => Date.now() - new Date(x.created_at) < DAY);
   calls = calls.filter(x => Date.now() - new Date(x.started_at) < DAY);
   if (activeId) render(false);
-  return before !== msgs.length + calls.length;
 }
 
 /* ---------- sending ---------- */
@@ -289,7 +313,6 @@ $('composer').onsubmit = async e => {
   if (error) { alert('Not sent: ' + error.message); $('msg').value = body; return; }
   if (!msgs.some(x => x.id === data.id)) { msgs.push(data); render(true); }
 };
-
 $('clearBtn').onclick = async () => {
   if (!activeId || !confirm(`Delete this whole conversation with ${lines[activeId].display_name} for both of you, right now?`)) return;
   const pair = `and(sender.eq.${me.id},recipient.eq.${activeId}),and(sender.eq.${activeId},recipient.eq.${me.id})`;
@@ -303,8 +326,11 @@ function subscribe() {
   sb.channel('inbox')
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, ({ new: m }) => {
       const other = m.sender === me.id ? m.recipient : m.sender;
-      if (other === activeId) { if (!msgs.some(x => x.id === m.id)) { msgs.push(m); render(false); } }
-      else if (m.sender !== me.id) { unread.add(other); renderContacts(); }
+      if (other === activeId && !document.hidden) { if (!msgs.some(x => x.id === m.id)) { msgs.push(m); render(false); } }
+      else if (m.sender !== me.id) {
+        if (other === activeId && !msgs.some(x => x.id === m.id)) { msgs.push(m); render(false); }
+        unread.add(other); renderContacts(); beep([880], 0.12);
+      }
     })
     .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' }, ({ old }) => {
       msgs = msgs.filter(x => x.id !== old.id); if (activeId) render(false);
@@ -312,103 +338,262 @@ function subscribe() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'calls' }, ({ eventType, new: c, old }) => {
       if (eventType === 'DELETE') { calls = calls.filter(x => x.id !== old.id); if (activeId) render(false); return; }
       const other = c.caller === me.id ? c.callee : c.caller;
-      if (other === activeId) {
-        const i = calls.findIndex(x => x.id === c.id);
-        i >= 0 ? calls[i] = c : calls.push(c); render(false);
-      } else if (c.callee === me.id && c.status === 'missed') { unread.add(other); renderContacts(); }
-      if (cur && cur.id === c.id) {
-        if (['declined', 'ended', 'missed'].includes(c.status)) endLocal(c.status === 'declined' ? 'Declined' : 'Call ended');
-        if (c.status === 'answered' && cur.role === 'caller') $('callStatus').textContent = 'Connected';
-      }
+      if (other === activeId) { const i = calls.findIndex(x => x.id === c.id); i >= 0 ? calls[i] = c : calls.push(c); render(false); }
+      else if (c.callee === me.id && c.status === 'missed') { unread.add(other); renderContacts(); }
+      onCallRow(c);
     })
-    .subscribe();
+    .subscribe(status => { if (status === 'SUBSCRIBED') checkRinging(); });
+}
+// Catch calls that started while this device was asleep / reconnecting
+async function checkRinging() {
+  if (!me || cur) return;
+  const since = new Date(Date.now() - RING_MS).toISOString();
+  const { data } = await sb.from('calls').select('*').eq('callee', me.id).eq('status', 'ringing').gt('started_at', since).order('started_at', { ascending: false }).limit(1);
+  if (data && data[0]) onCallRow(data[0]);
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { checkRinging(); closeNotifications(); } });
+
+/* ---------- sounds (ringtone, ringback) ---------- */
+let actx = null, toneTimer = null;
+function unlockAudio() {
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === 'suspended') actx.resume();
+  } catch {}
+}
+['pointerdown', 'keydown', 'touchend'].forEach(ev => document.addEventListener(ev, unlockAudio, { passive: true }));
+function beep(freqs, dur, vol = 0.22) {
+  if (!actx || actx.state !== 'running') return;
+  const t = actx.currentTime, g = actx.createGain();
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + 0.02);
+  g.gain.setValueAtTime(vol, t + dur - 0.05); g.gain.linearRampToValueAtTime(0, t + dur);
+  g.connect(actx.destination);
+  freqs.forEach(f => { const o = actx.createOscillator(); o.frequency.value = f; o.connect(g); o.start(t); o.stop(t + dur); });
+}
+function startTone(type) {
+  stopTone(); unlockAudio();
+  const play = type === 'ring'
+    ? () => { [0, 180, 360, 900, 1080, 1260].forEach(d => setTimeout(() => beep([1046, 1318], 0.14, 0.3), d)); navigator.vibrate && navigator.vibrate([500, 250, 500]); }
+    : () => beep([440, 480], 1.6, 0.12); // ringback the caller hears
+  play(); toneTimer = setInterval(play, type === 'ring' ? 2600 : 4000);
+}
+function stopTone() { clearInterval(toneTimer); toneTimer = null; navigator.vibrate && navigator.vibrate(0); }
+
+/* ---------- push notifications ---------- */
+const b64uToBytes = s => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - s.length % 4) % 4)), c => c.charCodeAt(0));
+async function setupPush(ask) {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+    return alertBar(IOS && !STANDALONE ? 'ios-install' : 'unsupported');
+  }
+  if (Notification.permission === 'denied') return alertBar('denied');
+  if (Notification.permission !== 'granted') {
+    if (!ask) return alertBar('off');
+    const r = await Notification.requestPermission();
+    if (r !== 'granted') return alertBar(r === 'denied' ? 'denied' : 'off');
+  }
+  try {
+    const reg = swReg || await navigator.serviceWorker.ready;
+    const { data: keyData, error: keyErr } = await sb.functions.invoke('push', { method: 'GET' });
+    if (keyErr) throw keyErr;
+    const publicKey = (typeof keyData === 'string' ? JSON.parse(keyData) : keyData).publicKey;
+    let sub = await reg.pushManager.getSubscription();
+    const keyNow = sub && sub.options && sub.options.applicationServerKey;
+    if (sub && keyNow && btoa(String.fromCharCode(...new Uint8Array(keyNow))) !== btoa(String.fromCharCode(...b64uToBytes(publicKey)))) {
+      await sub.unsubscribe(); sub = null;
+    }
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uToBytes(publicKey) });
+    const j = sub.toJSON();
+    const { error } = await sb.rpc('save_push_subscription', { p_endpoint: j.endpoint, p_p256dh: j.keys.p256dh, p_auth: j.keys.auth });
+    if (error) throw error;
+    alertBar('on');
+  } catch (e) { console.warn('push', e); alertBar('error'); }
+}
+function alertBar(state) {
+  const b = $('alertBar');
+  const msg = {
+    off: ['Turn on call alerts', 'Get a ring and notifications for calls and messages, even when this app is closed.', 'Turn on'],
+    denied: ['Alerts are blocked', IOS ? 'Settings → Notifications → Private Line → Allow Notifications.' : 'Click the lock icon in the address bar → Notifications → Allow, then reload.', null],
+    'ios-install': ['Install to get call alerts', 'On iPhone, alerts only work from the Home Screen app: tap Share, then “Add to Home Screen”, then open Private Line from your Home Screen.', null],
+    unsupported: ['Alerts not supported here', 'This browser can’t receive alerts. Calls only ring while the app is open.', null],
+    error: ['Couldn’t turn on alerts', 'Check your connection and try again.', 'Try again'],
+  }[state];
+  if (!msg) { b.classList.add('hidden'); return; }
+  b.innerHTML = ''; b.classList.remove('hidden');
+  const t = document.createElement('b'); t.textContent = msg[0];
+  const d = document.createElement('div'); d.textContent = msg[1]; b.append(t, d);
+  if (msg[2]) { const btn = document.createElement('button'); btn.className = 'primary'; btn.textContent = msg[2]; btn.onclick = () => setupPush(true); b.append(btn); }
+}
+async function closeNotifications() {
+  try { const reg = swReg || await navigator.serviceWorker.getRegistration(); (await reg.getNotifications()).forEach(n => n.close()); } catch {}
 }
 
-/* ---------- calls (peer-to-peer, each line has a fixed address) ---------- */
+/* ---------- install app ---------- */
+let installEvt = null;
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; renderInstall(); });
+addEventListener('appinstalled', () => { installEvt = null; renderInstall(); });
+function renderInstall() {
+  const b = $('installBar');
+  if (!me || STANDALONE || (!installEvt && !IOS)) { b.classList.add('hidden'); return; }
+  if (IOS && alertBarIsIosInstall()) { b.classList.add('hidden'); return; }
+  b.innerHTML = ''; b.classList.remove('hidden');
+  const t = document.createElement('b'); t.textContent = 'Get the app';
+  const d = document.createElement('div');
+  if (installEvt) {
+    d.textContent = 'Install Private Line on this device for a home-screen icon and call alerts.';
+    const btn = document.createElement('button'); btn.className = 'primary'; btn.textContent = 'Install';
+    btn.onclick = async () => { installEvt.prompt(); await installEvt.userChoice; installEvt = null; renderInstall(); };
+    b.append(t, d, btn);
+  } else {
+    d.textContent = 'Tap Share, then “Add to Home Screen”. Open it from your Home Screen to get call alerts.';
+    b.append(t, d);
+  }
+}
+const alertBarIsIosInstall = () => $('alertBar').textContent.startsWith('Install to get');
+
+/* ---------- calls ---------- */
 function startPeer() {
-  peer = new Peer(PEER_PREFIX + me.id);
-  peer.on('call', incoming);
-  peer.on('error', err => {
-    if (err.type === 'peer-unavailable' && cur && cur.role === 'caller') {
-      setCallStatus('missed'); endLocal(`${lines[cur.other].display_name} is offline — logged as a missed call`);
-    } else if (err.type === 'unavailable-id') {
-      // Same line open in another tab/device; calls ring there instead.
-      console.warn('Line already open elsewhere');
-    } else console.warn('peer', err.type);
+  const rand = Array.from(crypto.getRandomValues(new Uint8Array(5)), b => b.toString(16).padStart(2, '0')).join('');
+  peer = new Peer(PEER_PREFIX + me.id + '-' + rand);
+  peer.on('call', pc => {
+    const ok = cur && cur.role === 'callee' && cur.answeredHere && pc.metadata && pc.metadata.callId === cur.id &&
+      pc.peer.startsWith(PEER_PREFIX + cur.other + '-');
+    if (!ok) { pc.close(); return; }
+    cur.peerCall = pc; pc.answer(cur.local); wireMedia(pc);
   });
-  peer.on('disconnected', () => setTimeout(() => peer && !peer.destroyed && peer.reconnect(), 2000));
+  peer.on('error', err => {
+    if (err.type === 'peer-unavailable' && cur && cur.role === 'caller' && cur.connecting) retryConnect();
+    else console.warn('peer', err.type);
+  });
+  peer.on('disconnected', () => setTimeout(() => peer && !peer.destroyed && peer.reconnect(), 1500));
 }
 function destroyPeer() { try { peer && peer.destroy(); } catch {} peer = null; }
+function peerReady() {
+  return new Promise(res => {
+    if (!peer || peer.destroyed) startPeer();
+    if (peer.open) return res(true);
+    if (peer.disconnected) try { peer.reconnect(); } catch {}
+    const t = setTimeout(() => res(false), 10000);
+    peer.once('open', () => { clearTimeout(t); res(true); });
+  });
+}
+const media = kind => navigator.mediaDevices.getUserMedia({ audio: true, video: kind === 'video' ? { facingMode: 'user' } : false });
 
-async function media(kind) {
-  return navigator.mediaDevices.getUserMedia({ audio: true, video: kind === 'video' });
-}
-function showCall(title, status, mode) {
+function showCall(status, mode) {
+  const name = lines[cur.other]?.display_name || '';
   $('callUI').classList.remove('hidden');
-  $('callTitle').textContent = title; $('callStatus').textContent = status;
-  const ringing = mode === 'incoming';
-  $('answerBtn').classList.toggle('hidden', !ringing);
-  $('declineBtn').classList.toggle('hidden', !ringing);
-  ['muteBtn', 'camBtn', 'hangBtn'].forEach(b => $(b).classList.toggle('hidden', ringing));
-  $('camBtn').classList.toggle('hidden', ringing || cur?.kind !== 'video');
+  $('callUI').classList.toggle('ringing', mode === 'incoming' || mode === 'outgoing');
+  $('callAvatar').textContent = name.slice(0, 1).toUpperCase();
+  $('callTitle').textContent = name; $('callStatus').textContent = status;
+  const incoming = mode === 'incoming';
+  $('answerBtn').classList.toggle('hidden', !incoming);
+  $('declineBtn').classList.toggle('hidden', !incoming);
+  $('muteBtn').classList.toggle('hidden', incoming);
+  $('hangBtn').classList.toggle('hidden', incoming);
+  $('camBtn').classList.toggle('hidden', incoming || cur.kind !== 'video');
+  $('remoteVideo').classList.toggle('hidden', cur.kind !== 'video' || !cur.connected);
+  $('localVideo').classList.toggle('hidden', cur.kind !== 'video' || !cur.local);
+  $('callAvatar').classList.toggle('hidden', cur.kind === 'video' && cur.connected);
 }
-function attachRemote(stream) {
-  $('remoteVideo').srcObject = stream; // audio still plays when the video box is hidden
-  $('remoteVideo').classList.toggle('hidden', cur?.kind !== 'video');
-}
-async function setCallStatus(status) {
-  if (!cur) return;
-  const patch = { status };
-  if (status === 'answered') patch.answered_at = new Date().toISOString();
-  if (['ended', 'missed', 'declined'].includes(status)) patch.ended_at = new Date().toISOString();
-  await sb.from('calls').update(patch).eq('id', cur.id);
+function wireMedia(pc) {
+  pc.on('stream', s => {
+    const v = $('remoteVideo'); v.srcObject = s; v.play().catch(() => {});
+    if (!cur) return;
+    cur.connected = true; cur.connecting = false; clearTimeout(cur.timer); stopTone();
+    showCall('Connected', 'active');
+  });
+  pc.on('close', () => { if (cur && cur.peerCall === pc && cur.connected) hangUp(); });
+  pc.on('error', e => console.warn('media', e));
 }
 
 async function placeCall(kind) {
   if (!activeId || cur) return;
+  unlockAudio();
   let local;
-  try { local = await media(kind); } catch { alert('Allow microphone' + (kind === 'video' ? '/camera' : '') + ' access to call.'); return; }
+  try { local = await media(kind); } catch { alert('Allow microphone' + (kind === 'video' ? ' and camera' : '') + ' access to call.'); return; }
+  peerReady(); // warm up
   const { data, error } = await sb.from('calls').insert({ callee: activeId, kind }).select().single();
   if (error) { local.getTracks().forEach(t => t.stop()); alert(error.message); return; }
-  cur = { id: data.id, role: 'caller', kind, local, other: activeId };
-  $('localVideo').srcObject = local; $('localVideo').classList.toggle('hidden', kind !== 'video');
-  showCall(lines[activeId].display_name, 'Calling…', 'active');
-  cur.peerCall = peer.call(PEER_PREFIX + activeId, local, { metadata: { callId: data.id, kind } });
-  cur.peerCall?.on('stream', s => { attachRemote(s); $('callStatus').textContent = 'Connected'; clearTimeout(cur?.timer); });
+  cur = { id: data.id, role: 'caller', kind, other: activeId, local };
+  $('localVideo').srcObject = local;
+  showCall('Ringing…', 'outgoing'); startTone('ringback');
   cur.timer = setTimeout(async () => {
-    const { data: row } = await sb.from('calls').select('status').eq('id', data.id).single();
-    if (cur && cur.id === data.id && row?.status === 'ringing') { await setCallStatus('missed'); endLocal('No answer'); }
-  }, 35000);
+    if (cur && cur.id === data.id && !cur.connected && !cur.connecting) { await setCallStatus('missed', 'ringing'); endLocal('No answer'); }
+  }, RING_MS);
 }
 $('callBtn').onclick = () => placeCall('audio');
 $('videoBtn').onclick = () => placeCall('video');
 
-async function incoming(pc) {
-  const { callId, kind } = pc.metadata || {};
-  const from = pc.peer.replace(PEER_PREFIX, '');
-  if (cur || !lines[from]) { pc.close(); return; }
-  // Only ring if the call is really logged from that line to me (blocks spoofed callers)
-  const { data: row } = await sb.from('calls').select('caller,callee,status').eq('id', callId).maybeSingle();
-  if (!row || row.caller !== from || row.callee !== me.id || row.status !== 'ringing' || cur) { pc.close(); return; }
-  cur = { id: callId, role: 'callee', kind: kind || 'audio', peerCall: pc, other: from };
-  showCall(lines[from].display_name, `Incoming ${kind === 'video' ? 'video' : 'voice'} call`, 'incoming');
-  pc.on('stream', attachRemote);
+let retries = 0;
+async function connectTo(peerId) {
+  if (!cur) return;
+  cur.connecting = true; cur.calleePeer = peerId; clearTimeout(cur.timer);
+  stopTone(); showCall('Connecting…', 'active');
+  if (!(await peerReady())) { await setCallStatus('ended'); return endLocal('Couldn’t connect'); }
+  const pc = peer.call(peerId, cur.local, { metadata: { callId: cur.id, kind: cur.kind } });
+  if (!pc) return retryConnect();
+  cur.peerCall = pc; wireMedia(pc);
+  cur.timer = setTimeout(() => { if (cur && !cur.connected) retryConnect(); }, 12000);
 }
+function retryConnect() {
+  if (!cur || cur.connected) return;
+  if (++retries > 5) { retries = 0; setCallStatus('ended'); return endLocal('Couldn’t connect'); }
+  setTimeout(() => cur && !cur.connected && connectTo(cur.calleePeer), 1500);
+}
+
+function onCallRow(c) {
+  if (!me) return;
+  // Someone is calling me
+  if (c.callee === me.id && c.status === 'ringing' && !cur && Date.now() - new Date(c.started_at) < RING_MS) {
+    cur = { id: c.id, role: 'callee', kind: c.kind, other: c.caller };
+    showCall(`Incoming ${c.kind === 'video' ? 'video' : 'voice'} call`, 'incoming');
+    startTone('ring');
+    cur.timer = setTimeout(() => { if (cur && cur.id === c.id && !cur.answeredHere) endLocal(); }, RING_MS + 2000);
+    return;
+  }
+  if (!cur || cur.id !== c.id) return;
+  if (c.status === 'answered') {
+    if (cur.role === 'caller' && !cur.connecting && !cur.connected && c.callee_peer) connectTo(c.callee_peer);
+    if (cur.role === 'callee' && !cur.answeredHere) endLocal('Answered on another device');
+  }
+  if (['declined', 'ended', 'missed'].includes(c.status)) {
+    endLocal({ declined: 'Declined', missed: cur.role === 'caller' ? 'No answer' : 'Missed call', ended: 'Call ended' }[c.status]);
+  }
+}
+
+async function setCallStatus(status, onlyIf) {
+  if (!cur) return null;
+  const patch = { status };
+  if (status === 'answered') patch.answered_at = new Date().toISOString();
+  if (['ended', 'missed', 'declined'].includes(status)) patch.ended_at = new Date().toISOString();
+  let q = sb.from('calls').update(patch).eq('id', cur.id);
+  if (onlyIf) q = q.eq('status', onlyIf);
+  const { data } = await q.select();
+  return data && data[0];
+}
+
 $('answerBtn').onclick = async () => {
   if (!cur) return;
-  try { cur.local = await media(cur.kind); } catch { alert('Allow microphone/camera access to answer.'); return; }
-  $('localVideo').srcObject = cur.local; $('localVideo').classList.toggle('hidden', cur.kind !== 'video');
-  cur.peerCall.answer(cur.local);
-  await setCallStatus('answered');
-  showCall(lines[cur.other].display_name, 'Connected', 'active');
+  unlockAudio(); stopTone();
+  $('callStatus').textContent = 'Connecting…';
+  try { cur.local = await media(cur.kind); }
+  catch { alert('Allow microphone' + (cur.kind === 'video' ? ' and camera' : '') + ' access to answer.'); return; }
+  $('localVideo').srcObject = cur.local;
+  if (!(await peerReady()) || !cur) { if (cur) { await setCallStatus('ended'); endLocal('Couldn’t connect'); } return; }
+  cur.answeredHere = true; clearTimeout(cur.timer);
+  const patch = { status: 'answered', answered_at: new Date().toISOString(), callee_peer: peer.id };
+  const { data } = await sb.from('calls').update(patch).eq('id', cur.id).eq('status', 'ringing').select();
+  if (!data || !data.length) return endLocal('Call ended');
+  showCall('Connecting…', 'active');
+  cur.timer = setTimeout(async () => { if (cur && !cur.connected) { await setCallStatus('ended'); endLocal('Couldn’t connect'); } }, 30000);
 };
-$('declineBtn').onclick = async () => { await setCallStatus('declined'); endLocal(); };
-$('hangBtn').onclick = async () => {
+$('declineBtn').onclick = async () => { stopTone(); await setCallStatus('declined', 'ringing'); endLocal(); };
+async function hangUp() {
   if (!cur) return;
-  const { data } = await sb.from('calls').select('status').eq('id', cur.id).single();
-  await setCallStatus(data?.status === 'answered' ? 'ended' : 'missed');
+  if (cur.role === 'caller' && !cur.connected && !cur.connecting) await setCallStatus('missed', 'ringing');
+  else await setCallStatus('ended');
   endLocal();
-};
+}
+$('hangBtn').onclick = hangUp;
 $('muteBtn').onclick = () => {
   const t = cur?.local?.getAudioTracks()[0]; if (!t) return;
   t.enabled = !t.enabled; $('muteBtn').textContent = t.enabled ? 'Mute' : 'Unmute';
@@ -420,19 +605,17 @@ $('camBtn').onclick = () => {
 
 function endLocal(note) {
   if (!cur) return;
-  clearTimeout(cur.timer);
-  try { cur.peerCall?.close(); } catch {}
-  cur.local?.getTracks().forEach(t => t.stop());
+  stopTone(); clearTimeout(cur.timer); retries = 0;
+  try { cur.peerCall && cur.peerCall.close(); } catch {}
+  cur.local && cur.local.getTracks().forEach(t => t.stop());
   $('remoteVideo').srcObject = null; $('localVideo').srcObject = null;
   $('muteBtn').textContent = 'Mute'; $('camBtn').textContent = 'Camera off';
+  $('callUI').classList.remove('ringing');
   cur = null;
   if (note) { $('callStatus').textContent = note; setTimeout(() => !cur && $('callUI').classList.add('hidden'), 1800); }
   else $('callUI').classList.add('hidden');
 }
-window.addEventListener('beforeunload', () => {
-  if (cur) setCallStatus(cur.role === 'callee' && !cur.local ? 'declined' : 'ended'); // best effort
-  destroyPeer();
-});
+addEventListener('pagehide', () => { if (cur && cur.connected) setCallStatus('ended'); });
 </script>
 </body>
 </html>
