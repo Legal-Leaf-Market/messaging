@@ -100,7 +100,7 @@
     <div id="installBar" class="bar hidden"></div>
     <div id="alertBar" class="bar hidden"></div>
     <div id="contacts"></div>
-    <div id="ver">Private Line v3 · alerts: <span id="alertState">checking…</span></div>
+    <div id="ver">Private Line v4 · alerts: <span id="alertState">checking…</span></div>
   </aside>
   <main id="chat">
     <header>
@@ -145,7 +145,7 @@ const LOGIN_DOMAIN      = 'crossroadsweddingco.shop'; // users are created as us
 /* ================================================================================= */
 
 const DAY = 24 * 60 * 60 * 1000;
-const RING_MS = 40000;
+const RING_MS = 60000;
 const PEER_PREFIX = 'crwco-line-';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const $ = id => document.getElementById(id);
@@ -357,7 +357,11 @@ async function checkRinging() {
   const { data } = await sb.from('calls').select('*').eq('callee', me.id).eq('status', 'ringing').gt('started_at', since).order('started_at', { ascending: false }).limit(1);
   if (data && data[0]) onCallRow(data[0]);
 }
-document.addEventListener('visibilitychange', () => { if (!document.hidden) { checkRinging(); closeNotifications(); } });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) return;
+  checkRinging(); closeNotifications();
+  if (me && !cur && peer && (peer.disconnected || !peer.open)) { destroyPeer(); startPeer(); }
+});
 
 /* ---------- sounds (ringtone, ringback) ---------- */
 let actx = null, toneTimer = null;
@@ -470,14 +474,32 @@ function startPeer() {
   peer.on('call', pc => {
     const ok = cur && cur.role === 'callee' && cur.answeredHere && pc.metadata && pc.metadata.callId === cur.id &&
       pc.peer.startsWith(PEER_PREFIX + cur.other + '-');
-    if (!ok) { pc.close(); return; }
+    if (!ok) { dbg && cur && dbg('ignored media offer from ' + pc.peer.slice(-6)); pc.close(); return; }
+    dbg('media offer received, answering');
     cur.peerCall = pc; pc.answer(cur.local); wireMedia(pc);
   });
   peer.on('error', err => {
+    if (cur) dbg('peer error ' + err.type);
     if (err.type === 'peer-unavailable' && cur && cur.role === 'caller' && cur.connecting) retryConnect();
     else console.warn('peer', err.type);
   });
   peer.on('disconnected', () => setTimeout(() => peer && !peer.destroyed && peer.reconnect(), 1500));
+}
+// Call diagnostics: each step is written to call_debug (insert-only; readable only from the Supabase dashboard).
+function dbg(event) {
+  try {
+    console.log('[call]', event);
+    if (cur && cur.id) sb.from('call_debug').insert({ call_id: cur.id, event: `${cur.role}: ${event}`.slice(0, 480) }).then(() => {}, () => {});
+  } catch {}
+}
+function freshPeer() {
+  // Phones can silently lose the signalling socket while asleep; always start clean before connecting.
+  destroyPeer(); startPeer();
+  return new Promise(res => {
+    const t = setTimeout(() => res(false), 12000);
+    peer.once('open', () => { clearTimeout(t); res(true); });
+    peer.once('error', e => { if (e.type !== 'peer-unavailable') { clearTimeout(t); dbg('peer error ' + e.type); res(false); } });
+  });
 }
 function destroyPeer() { try { peer && peer.destroy(); } catch {} peer = null; }
 function peerReady() {
@@ -508,14 +530,25 @@ function showCall(status, mode) {
   $('callAvatar').classList.toggle('hidden', cur.kind === 'video' && cur.connected);
 }
 function wireMedia(pc) {
+  const watchIce = () => {
+    const rtc = pc.peerConnection; if (!rtc) return setTimeout(watchIce, 200);
+    rtc.addEventListener('iceconnectionstatechange', () => {
+      const st = rtc.iceConnectionState; dbg('ice ' + st);
+      if (!cur || cur.peerCall !== pc) return;
+      if (st === 'checking' && !cur.connected) $('callStatus').textContent = 'Connecting… (finding a route)';
+      if (st === 'failed') { $('callStatus').textContent = 'Couldn’t reach the other phone (network blocked)'; }
+    });
+  };
+  watchIce();
   pc.on('stream', s => {
+    dbg('remote media received');
     const v = $('remoteVideo'); v.srcObject = s; v.play().catch(() => {});
     if (!cur) return;
     cur.connected = true; cur.connecting = false; clearTimeout(cur.timer); stopTone();
     showCall('Connected', 'active');
   });
   pc.on('close', () => { if (cur && cur.peerCall === pc && cur.connected) hangUp(); });
-  pc.on('error', e => console.warn('media', e));
+  pc.on('error', e => { dbg('media error ' + (e && (e.type || e.message))); console.warn('media', e); });
 }
 
 async function placeCall(kind) {
@@ -523,10 +556,11 @@ async function placeCall(kind) {
   unlockAudio();
   let local;
   try { local = await media(kind); } catch { alert('Allow microphone' + (kind === 'video' ? ' and camera' : '') + ' access to call.'); return; }
-  peerReady(); // warm up
+  const peerPromise = freshPeer(); // clean signalling connection for this call
   const { data, error } = await sb.from('calls').insert({ callee: activeId, kind }).select().single();
   if (error) { local.getTracks().forEach(t => t.stop()); alert(error.message); return; }
-  cur = { id: data.id, role: 'caller', kind, other: activeId, local };
+  cur = { id: data.id, role: 'caller', kind, other: activeId, local, peerPromise };
+  dbg('calling (' + (STANDALONE ? 'app' : 'browser') + ', ' + (IOS ? 'iOS' : 'other') + ')');
   $('localVideo').srcObject = local;
   showCall('Ringing…', 'outgoing'); startTone('ringback');
   cur.timer = setTimeout(async () => {
@@ -541,7 +575,8 @@ async function connectTo(peerId) {
   if (!cur) return;
   cur.connecting = true; cur.calleePeer = peerId; clearTimeout(cur.timer);
   stopTone(); showCall('Connecting…', 'active');
-  if (!(await peerReady())) { await setCallStatus('ended'); return endLocal('Couldn’t connect'); }
+  dbg('connecting to ' + String(peerId).slice(-6) + ' try ' + retries);
+  if (!(await (cur.peerPromise || peerReady())) || !cur) { if (!cur) return; dbg('own peer not ready'); await setCallStatus('ended'); return endLocal('Couldn’t connect'); }
   const pc = peer.call(peerId, cur.local, { metadata: { callId: cur.id, kind: cur.kind } });
   if (!pc) return retryConnect();
   cur.peerCall = pc; wireMedia(pc);
@@ -559,13 +594,15 @@ function onCallRow(c) {
   if (c.callee === me.id && c.status === 'ringing' && !cur && Date.now() - new Date(c.started_at) < RING_MS) {
     cur = { id: c.id, role: 'callee', kind: c.kind, other: c.caller };
     showCall(`Incoming ${c.kind === 'video' ? 'video' : 'voice'} call`, 'incoming');
+    $('answerBtn').disabled = false; $('answerBtn').textContent = 'Answer';
+    dbg('ringing shown (' + (document.hidden ? 'hidden' : 'visible') + ', ' + (STANDALONE ? 'app' : 'browser') + ', ' + (IOS ? 'iOS' : 'other') + ')');
     startTone('ring');
     cur.timer = setTimeout(() => { if (cur && cur.id === c.id && !cur.answeredHere) endLocal(); }, RING_MS + 2000);
     return;
   }
   if (!cur || cur.id !== c.id) return;
   if (c.status === 'answered') {
-    if (cur.role === 'caller' && !cur.connecting && !cur.connected && c.callee_peer) connectTo(c.callee_peer);
+    if (cur.role === 'caller' && !cur.connecting && !cur.connected && c.callee_peer) { dbg('saw answer'); connectTo(c.callee_peer); }
     if (cur.role === 'callee' && !cur.answeredHere) endLocal('Answered on another device');
   }
   if (['declined', 'ended', 'missed'].includes(c.status)) {
@@ -585,19 +622,37 @@ async function setCallStatus(status, onlyIf) {
 }
 
 $('answerBtn').onclick = async () => {
-  if (!cur) return;
-  unlockAudio(); stopTone();
-  $('callStatus').textContent = 'Connecting…';
-  try { cur.local = await media(cur.kind); }
-  catch { alert('Allow microphone' + (cur.kind === 'video' ? ' and camera' : '') + ' access to answer.'); return; }
-  $('localVideo').srcObject = cur.local;
-  if (!(await peerReady()) || !cur) { if (cur) { await setCallStatus('ended'); endLocal('Couldn’t connect'); } return; }
-  cur.answeredHere = true; clearTimeout(cur.timer);
-  const patch = { status: 'answered', answered_at: new Date().toISOString(), callee_peer: peer.id };
-  const { data } = await sb.from('calls').update(patch).eq('id', cur.id).eq('status', 'ringing').select();
-  if (!data || !data.length) return endLocal('Call ended');
-  showCall('Connecting…', 'active');
-  cur.timer = setTimeout(async () => { if (cur && !cur.connected) { await setCallStatus('ended'); endLocal('Couldn’t connect'); } }, 30000);
+  if (!cur || cur.answering) return;
+  const btn = $('answerBtn');
+  cur.answering = true; btn.disabled = true; btn.textContent = 'Answering…';
+  const fail = async (msg, why) => { dbg('answer failed: ' + why); if (cur) { await setCallStatus('ended'); endLocal(msg); } };
+  try {
+    dbg('answer tapped'); unlockAudio(); stopTone();
+    $('callStatus').textContent = 'Starting microphone…';
+    try { cur.local = await media(cur.kind); dbg('mic ok'); }
+    catch (e) {
+      dbg('mic failed ' + (e && e.name));
+      if (cur) { cur.answering = false; btn.disabled = false; btn.textContent = 'Answer'; }
+      $('callStatus').textContent = 'Allow microphone' + (cur && cur.kind === 'video' ? ' and camera' : '') + ' access, then tap Answer again.';
+      return;
+    }
+    if (!cur) return;
+    $('localVideo').srcObject = cur.local;
+    $('callStatus').textContent = 'Connecting…';
+    if (!(await freshPeer())) return fail('Couldn’t connect. Check your signal and try again.', 'peer not ready');
+    if (!cur) return;
+    dbg('peer ready ' + peer.id.slice(-6));
+    cur.answeredHere = true; clearTimeout(cur.timer);
+    const patch = { status: 'answered', answered_at: new Date().toISOString(), callee_peer: peer.id };
+    const { data, error } = await sb.from('calls').update(patch).eq('id', cur.id).eq('status', 'ringing').select();
+    if (error) return fail('Couldn’t answer: ' + error.message, 'update error ' + error.message);
+    if (!data || !data.length) { dbg('call no longer ringing'); return endLocal('The call already ended'); }
+    dbg('marked answered');
+    showCall('Connecting…', 'active');
+    cur.timer = setTimeout(async () => { if (cur && !cur.connected) fail('Couldn’t connect. One of the networks is blocking calls.', 'no media after 30s'); }, 30000);
+  } catch (e) {
+    fail('Something went wrong: ' + (e && e.message || e), 'exception ' + (e && e.message));
+  }
 };
 $('declineBtn').onclick = async () => { stopTone(); await setCallStatus('declined', 'ringing'); endLocal(); };
 async function hangUp() {
