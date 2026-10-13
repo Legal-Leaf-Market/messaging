@@ -104,7 +104,7 @@
     <div id="installBar" class="bar hidden"></div>
     <div id="alertBar" class="bar hidden"></div>
     <div id="contacts"></div>
-    <div id="ver">Private Line v5 · alerts: <span id="alertState">checking…</span></div>
+    <div id="ver">Private Line v6 · alerts: <span id="alertState">checking…</span></div>
   </aside>
   <main id="chat">
     <header>
@@ -365,6 +365,19 @@ async function checkRinging() {
   const { data } = await sb.from('calls').select('*').eq('callee', me.id).eq('status', 'ringing').gt('started_at', since).order('started_at', { ascending: false }).limit(1);
   if (data && data[0]) onCallRow(data[0]);
 }
+// Backup to live updates: during a call (and while the app is on screen) check the call's status every 2s,
+// so a dropped live-update message can never leave a call stuck.
+let polling = false;
+setInterval(async () => {
+  if (!me || polling || (!cur && document.hidden)) return;
+  polling = true;
+  try {
+    if (cur && cur.id) {
+      const { data } = await sb.from('calls').select('*').eq('id', cur.id).maybeSingle();
+      if (data && cur && cur.id === data.id && data.status !== cur.lastSeen) { cur.lastSeen = data.status; onCallRow(data); }
+    } else await checkRinging();
+  } catch {} finally { polling = false; }
+}, 2000);
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) return;
   checkRinging(); closeNotifications();
@@ -610,7 +623,7 @@ function onCallRow(c) {
   }
   if (!cur || cur.id !== c.id) return;
   if (c.status === 'answered') {
-    if (cur.role === 'caller' && !cur.connecting && !cur.connected && c.callee_peer) { dbg('saw answer'); connectTo(c.callee_peer); }
+    if (cur.role === 'caller' && !cur.connecting && !cur.connected && c.callee_peer) { dbg('saw answer'); retries = 0; connectTo(c.callee_peer); }
     if (cur.role === 'callee' && !cur.answeredHere) endLocal('Answered on another device');
   }
   if (['declined', 'ended', 'missed'].includes(c.status)) {
