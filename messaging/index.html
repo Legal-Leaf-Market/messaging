@@ -393,9 +393,7 @@ async function setupPush(ask) {
   }
   try {
     const reg = swReg || await navigator.serviceWorker.ready;
-    const { data: keyData, error: keyErr } = await sb.functions.invoke('push', { method: 'GET' });
-    if (keyErr) throw keyErr;
-    const publicKey = (typeof keyData === 'string' ? JSON.parse(keyData) : keyData).publicKey;
+    const { publicKey } = await fetch(SUPABASE_URL + '/functions/v1/push', { headers: { apikey: SUPABASE_ANON_KEY } }).then(r => r.json());
     let sub = await reg.pushManager.getSubscription();
     const keyNow = sub && sub.options && sub.options.applicationServerKey;
     if (sub && keyNow && btoa(String.fromCharCode(...new Uint8Array(keyNow))) !== btoa(String.fromCharCode(...b64uToBytes(publicKey)))) {
