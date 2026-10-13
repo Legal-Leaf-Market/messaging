@@ -4,10 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: mediastream:; connect-src 'self' https://xppyedslhbrnqnymaaxb.supabase.co wss://xppyedslhbrnqnymaaxb.supabase.co https://0.peerjs.com wss://0.peerjs.com; worker-src 'self'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'">
+<script>
+  // Opened as /messaging (no slash)? Reload as /messaging/ so every file loads from the right folder.
+  if (!location.pathname.endsWith('/') && !/\.[a-z]+$/i.test(location.pathname)) location.replace(location.pathname + '/' + location.search + location.hash);
+</script>
 <title>Crossroads Private Line</title>
-<link rel="manifest" href="manifest.json">
-<link rel="icon" href="icon-192.png">
-<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="/messaging/manifest.json">
+<link rel="icon" href="/messaging/icon-192.png">
+<link rel="apple-touch-icon" href="/messaging/apple-touch-icon.png">
 <meta name="theme-color" content="#0f1115">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -100,7 +104,7 @@
     <div id="installBar" class="bar hidden"></div>
     <div id="alertBar" class="bar hidden"></div>
     <div id="contacts"></div>
-    <div id="ver">Private Line v4 · alerts: <span id="alertState">checking…</span></div>
+    <div id="ver">Private Line v5 · alerts: <span id="alertState">checking…</span></div>
   </aside>
   <main id="chat">
     <header>
@@ -136,7 +140,11 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.75.0/dist/umd/supabase.min.js"></script>
-<script src="peerjs.min.js"></script>
+<script src="/messaging/peerjs.min.js"></script>
+<script>
+  // Backup copy of the calling library if the local one didn't load
+  if (typeof Peer === 'undefined') document.write('<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"><\/script>');
+</script>
 <script>
 /* ===== SETTINGS — Supabase project URL + publishable key (safe to be public) ===== */
 const SUPABASE_URL      = 'https://xppyedslhbrnqnymaaxb.supabase.co';
@@ -160,7 +168,7 @@ let swReg = null;
 
 /* ---------- service worker (installable app + push) ---------- */
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js', { scope: './' }).then(r => swReg = r).catch(e => console.warn('sw', e));
+  navigator.serviceWorker.register('/messaging/sw.js', { scope: '/messaging/' }).then(r => swReg = r).catch(e => console.warn('sw', e));
 }
 
 /* ---------- auth ---------- */
