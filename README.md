@@ -49,3 +49,12 @@ To rename how someone appears, go to **Table Editor > profiles** and edit `displ
   - **iPhone (iOS 16.4+):** open the page in Safari, tap **Share**, then **Add to Home Screen**. Open **Private Line** from the Home Screen, sign in, and tap **Turn on**. iPhone only delivers alerts to the Home Screen app.
   - **Android / desktop Chrome:** tap **Install** in the app, or use the browser's install icon, then **Turn on** alerts.
 - **Backend pieces:** `setup-push.sql` adds the device list and the alert trigger. `supabase/functions/push` is the function that sends alerts. Its signing key is generated automatically and stored in the database, so there are no secrets to manage.
+
+## Making incoming calls ring
+A website can't play a real ringtone while the phone is locked; only installed native apps can. So an incoming call "rings" by repeating the alert every 5 seconds for up to about 45 seconds. Each repeat plays the phone's notification sound and vibrates again. It stops as soon as the call is answered, declined or missed, or when you open or swipe away the alert.
+- **Android / desktop:** the service worker (`messaging/sw.js`) repeats the alert. This goes live with a normal deploy.
+- **iPhone:** iOS stops service workers right away, so the `push` function repeats the alert from the server. **After changing `supabase/functions/push/index.ts`, redeploy it:** `supabase functions deploy push --project-ref xppyedslhbrnqnymaaxb`, or paste the file into Supabase > Edge Functions > push > Code and click Deploy.
+
+Phone settings that silence alerts:
+- **iPhone:** the Ring/Silent switch or Action Button must be on Ring, and no Focus or Do Not Disturb can be on. Go to Settings > Notifications > Private Line and turn on **Sounds**.
+- **Android:** go to Settings > Apps > Private Line (or Chrome, if it isn't installed) > Notifications, open the alert category, and pick a **ringtone** as its sound. Android 15 and later can turn down repeated alerts: turn off Settings > Notifications > **Notification cooldown**.

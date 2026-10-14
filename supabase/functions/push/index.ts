@@ -112,13 +112,36 @@ async function send(s: Sub, payload: string, ttl: number) {
 
 const json = (o: unknown, status = 200) => new Response(JSON.stringify(o), { status, headers: cors });
 
+// A web app can't play a ringtone on a locked phone, so an incoming call "rings" by
+// re-sending the alert every few seconds while the call is still ringing. Android and
+// desktop browsers repeat it themselves in the service worker; iPhone stops service
+// workers right away, so iPhones (Apple push endpoints) get the repeats from here.
+const RING_EVERY_MS = 5000;
+const RING_FOR_MS = 40_000;
+const isApple = (s: Sub) => { try { return new URL(s.endpoint).hostname.endsWith("push.apple.com"); } catch { return false; } };
+async function keepRinging(callId: unknown, startedAt: number, subs: Sub[], payload: string) {
+  for (;;) {
+    await new Promise((r) => setTimeout(r, RING_EVERY_MS));
+    const left = startedAt + RING_FOR_MS - Date.now();
+    if (left < 1000) return;
+    const { data } = await sb.from("calls").select("status").eq("id", callId).maybeSingle();
+    if (data?.status !== "ringing") return;
+    await Promise.allSettled(subs.map((s) => send(s, payload, Math.ceil(left / 1000))));
+  }
+}
+const runInBackground = (p: Promise<unknown>) => {
+  // deno-lint-ignore no-explicit-any
+  const rt = (globalThis as any).EdgeRuntime;
+  return rt?.waitUntil ? (rt.waitUntil(p), undefined) : p;
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   if (req.method === "GET") return json({ publicKey: (await getVapid()).pub });
 
   const { type, id } = await req.json().catch(() => ({} as Record<string, unknown>));
   const now = Date.now();
-  let to: string, from: string, ttl = 86400;
+  let to: string, from: string, ttl = 86400, startedAt = 0;
   let note: { title: string; body: string; tag: string; url: string; call?: boolean };
 
   if (type === "message") {
@@ -134,6 +157,7 @@ Deno.serve(async (req) => {
     if (type === "call") {
       if (c.status !== "ringing" || now - Date.parse(c.started_at) > 45_000) return json({ skipped: true });
       ttl = 40;
+      startedAt = Date.parse(c.started_at);
       note = { title: "", body: `Incoming ${kind} call`, tag: `call-${c.id}`, url: `./?with=${from}&call=${c.id}`, call: true };
     } else {
       if (c.status !== "missed" || now - Date.parse(c.ended_at ?? c.started_at) > 120_000) return json({ skipped: true });
@@ -144,6 +168,9 @@ Deno.serve(async (req) => {
   const { data: p } = await sb.from("profiles").select("display_name").eq("id", from).maybeSingle();
   note.title = p?.display_name ?? "Private line";
   const { data: subs } = await sb.from("push_subscriptions").select("id,endpoint,p256dh,auth").eq("user_id", to);
-  const results = await Promise.allSettled((subs ?? []).map((s: Sub) => send(s, JSON.stringify(note), ttl)));
+  const payload = JSON.stringify(note);
+  const results = await Promise.allSettled((subs ?? []).map((s: Sub) => send(s, payload, ttl)));
+  const apple = (subs ?? []).filter(isApple);
+  if (type === "call" && apple.length) await runInBackground(keepRinging(id, startedAt, apple, payload));
   return json({ sent: results.filter((r) => r.status === "fulfilled").length, of: subs?.length ?? 0 });
 });
