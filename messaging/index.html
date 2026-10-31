@@ -211,9 +211,11 @@
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.75.0/dist/umd/supabase.min.js"></script>
+<script src="/messaging/supabase.min.js"></script>
 <script src="/messaging/peerjs.min.js"></script>
 <script>
+  // Backup copy of the sign-in library if the local one didn't load
+  if (typeof supabase === 'undefined') document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.75.0/dist/umd/supabase.min.js"><\/script>');
   // Backup copy of the calling library if the local one didn't load
   if (typeof Peer === 'undefined') document.write('<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"><\/script>');
 </script>
@@ -224,10 +226,15 @@ const SUPABASE_ANON_KEY = 'sb_publishable_m_BQ-HC1v3-JANssdXJRlA_9TphYPCM';
 const LOGIN_DOMAIN      = 'crossroadsweddingco.shop'; // users are created as username@this-domain (full email also works)
 /* ================================================================================= */
 
-const APP_VERSION = 'v10';
+const APP_VERSION = 'v11';
 const DAY = 24 * 60 * 60 * 1000;
 const RING_MS = 60000;
 const PEER_PREFIX = 'crwco-line-';
+if (typeof supabase === 'undefined') {
+  // Without the library nothing below can run, and the Sign in button would do nothing at all. Say so instead.
+  document.getElementById('loginForm').onsubmit = e => { e.preventDefault(); document.getElementById('loginErr').textContent = 'Couldn\u2019t load the app. Check your connection and reload.'; };
+  throw new Error('supabase-js failed to load');
+}
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const $ = id => document.getElementById(id);
 $('appVer').textContent = APP_VERSION;
@@ -267,7 +274,7 @@ $('loginForm').onsubmit = async e => {
   const u = $('u').value.trim().toLowerCase();
   const email = u.includes('@') ? u : u + '@' + LOGIN_DOMAIN;
   const { error } = await sb.auth.signInWithPassword({ email, password: $('p').value });
-  if (error) $('loginErr').textContent = 'Wrong username or password.';
+  if (error) $('loginErr').textContent = error.status === 400 ? 'Wrong username or password.' : 'Couldn\u2019t reach the server. Check your connection and try again.';
 };
 $('logout').onclick = async () => {
   try {
