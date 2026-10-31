@@ -18,65 +18,116 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Private Line">
 <style>
-  :root{--bg:#0f1115;--panel:#171a21;--line:#262b35;--text:#e9ecf1;--muted:#8b93a3;--me:#3b6cf6;--them:#262b35;--accent:#3b6cf6;--danger:#e5484d;--ok:#30a46c;
+  :root{--bg:#0b0d12;--panel:#12151c;--raise:#1a1e27;--line:#232836;--text:#eef1f6;--muted:#8a93a6;--faint:#5d6578;
+        --me:#3d6df5;--me2:#5b84ff;--them:#1e2330;--accent:#3d6df5;--danger:#e5484d;--ok:#2fb36d;
         --st:env(safe-area-inset-top,0px);--sb:env(safe-area-inset-bottom,0px)}
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:15px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
-  button{font:inherit;cursor:pointer;border:0;border-radius:10px;padding:10px 14px;background:var(--line);color:var(--text)}
-  button.primary{background:var(--accent)} button.danger{background:var(--danger)} button.ok{background:var(--ok)}
-  button:disabled{opacity:.5;cursor:default}
-  input{font:inherit;font-size:16px;width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text)}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:15px/1.4 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+  button{font:inherit;cursor:pointer;border:0;border-radius:12px;padding:11px 14px;background:var(--raise);color:var(--text);transition:background .15s,transform .1s,opacity .15s}
+  button:active:not(:disabled){transform:scale(.97)}
+  button.primary{background:var(--accent);font-weight:600} button.danger{background:var(--danger)} button.ok{background:var(--ok)}
+  button.ghost{background:transparent;color:var(--muted)}
+  button:disabled{opacity:.35;cursor:default}
+  button:focus-visible,input:focus-visible{outline:2px solid var(--me2);outline-offset:2px}
+  input{font:inherit;font-size:16px;width:100%;padding:13px 14px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--text);transition:border-color .15s}
+  input:focus{border-color:var(--accent);outline:none}
+  input::placeholder{color:var(--faint)}
+  svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;display:block}
   .hidden{display:none!important}
-  .card{width:100%;max-width:340px;background:var(--panel);padding:24px;border-radius:16px;display:grid;gap:12px}
-  .card h1{margin:0 0 4px;font-size:20px} .err{color:var(--danger);font-size:13px;min-height:1em}
-  .screen{min-height:100%;display:grid;place-items:center;padding:calc(16px + var(--st)) 16px calc(16px + var(--sb))}
-  /* app */
-  #app{display:grid;grid-template-columns:300px 1fr;height:100dvh}
-  #side{background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
-  #side header{padding:calc(14px + var(--st)) 16px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:8px}
-  #side header small{color:var(--muted);display:block}
-  .hbtns{display:flex;gap:6px} .hbtns button{padding:8px 10px;font-size:13px}
-  #ver{padding:10px 16px calc(10px + var(--sb));color:var(--muted);font-size:11px;border-top:1px solid var(--line)}
-  .bar{margin:10px;padding:12px;border-radius:12px;background:#1f2633;font-size:13px;display:grid;gap:8px}
-  .bar b{font-size:14px}
-  #contacts{overflow:auto;flex:1}
-  .contact{padding:14px 16px;border-bottom:1px solid var(--line);cursor:pointer;display:flex;justify-content:space-between;align-items:center}
-  .contact.active{background:#1f2430} .contact .dot{width:9px;height:9px;border-radius:50%;background:var(--accent)}
-  #chat{display:flex;flex-direction:column;min-height:0}
-  #chat header{padding:calc(10px + var(--st)) 12px 10px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:6px}
-  #chat header .name{flex:1;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  #chat header button{padding:9px 11px}
+
+  /* sign-in and small forms */
+  .screen{min-height:100%;display:grid;place-items:center;padding:calc(16px + var(--st)) 16px calc(16px + var(--sb));
+          background:radial-gradient(120% 60% at 50% 0%,#18213a 0%,var(--bg) 60%)}
+  .card{width:100%;max-width:360px;background:var(--panel);border:1px solid var(--line);padding:28px 24px;border-radius:22px;display:grid;gap:12px;box-shadow:0 20px 60px #0008}
+  .card h1{margin:0;font-size:22px;letter-spacing:-.01em} .card p{margin:0 0 6px;color:var(--muted);font-size:14px}
+  .brand{display:flex;align-items:center;gap:10px;margin-bottom:6px;color:var(--muted);font-size:12px;letter-spacing:.08em;text-transform:uppercase;font-weight:600}
+  .brand img{width:40px;height:40px;border-radius:11px}
+  .err{color:#ff7a7e;font-size:13px;min-height:1em}
+
+  /* avatars */
+  .av{--h:220;flex:none;width:42px;height:42px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:17px;color:#fff;
+      background:linear-gradient(140deg,hsl(var(--h) 70% 58%),hsl(calc(var(--h) + 30) 65% 42%))}
+  .av.sm{width:34px;height:34px;font-size:14px}
+
+  /* app shell */
+  #app{display:grid;grid-template-columns:320px 1fr;height:100dvh}
+  #side{background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0;position:relative}
+  #side header{padding:calc(14px + var(--st)) 12px 12px 16px;display:flex;align-items:center;gap:12px}
+  .who{flex:1;min-width:0} .who strong{display:block;font-size:17px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .who small{color:var(--muted);font-size:12px}
+  .icon{width:42px;height:42px;padding:0;border-radius:50%;display:grid;place-items:center;background:transparent;color:var(--text)}
+  .icon:hover:not(:disabled){background:var(--raise)}
+  .icon.red{color:#ff6b70}
+  #menu{position:absolute;top:calc(60px + var(--st));right:12px;z-index:5;min-width:210px;background:var(--raise);border:1px solid var(--line);border-radius:14px;padding:6px;box-shadow:0 16px 40px #000a;display:grid}
+  #menu button{background:transparent;text-align:left;padding:11px 12px;border-radius:9px;display:flex;align-items:center;gap:10px}
+  #menu button:hover{background:#252b38} #menu hr{border:0;border-top:1px solid var(--line);margin:4px 2px}
+  #menu #logout{color:#ff7a7e}
+  .label{padding:8px 16px 6px;color:var(--faint);font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase}
+  .bar{margin:4px 12px 8px;padding:14px;border-radius:14px;background:linear-gradient(140deg,#1b2540,#161b28);border:1px solid #26314d;font-size:13px;color:#c3cad8;display:grid;gap:8px}
+  .bar b{font-size:14px;color:var(--text)} .bar button{justify-self:start;padding:8px 14px}
+  #contacts{overflow:auto;flex:1;padding:0 8px}
+  .contact{padding:10px;border-radius:14px;cursor:pointer;display:flex;align-items:center;gap:12px;transition:background .12s}
+  .contact:hover{background:var(--raise)} .contact.active{background:#1c2335}
+  .contact .nm{flex:1;min-width:0;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .contact .nm small{display:block;font-weight:400;color:var(--muted);font-size:12px}
+  .contact.unread .nm small{color:var(--me2)}
+  .contact .dot{width:10px;height:10px;border-radius:50%;background:var(--me2);box-shadow:0 0 0 3px #5b84ff33}
+  #ver{padding:10px 16px calc(10px + var(--sb));color:var(--faint);font-size:11px}
+
+  /* conversation */
+  #chat{display:flex;flex-direction:column;min-height:0;background:var(--bg)}
+  #chat header{padding:calc(8px + var(--st)) 8px 8px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:4px;background:#0e1118e6;backdrop-filter:blur(12px)}
+  #chat header .name{flex:1;min-width:0;font-weight:600;font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-left:6px}
+  #chatAv{margin-left:4px}
   #back{display:none}
-  #timeline{flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:6px;-webkit-overflow-scrolling:touch}
-  .bubble{max-width:78%;padding:8px 12px;border-radius:16px;background:var(--them);white-space:pre-wrap;word-wrap:break-word}
-  .bubble.me{align-self:flex-end;background:var(--me)}
-  .bubble .meta{font-size:11px;opacity:.65;margin-top:2px}
-  .sys{align-self:center;color:var(--muted);font-size:13px;padding:4px 10px;border:1px solid var(--line);border-radius:999px}
-  .empty{margin:auto;color:var(--muted);text-align:center;padding:16px}
-  #composer{display:flex;gap:8px;padding:10px 12px calc(10px + var(--sb));border-top:1px solid var(--line)}
-  /* call overlay */
-  #callUI{position:fixed;inset:0;background:#05070bf2;display:grid;place-items:center;z-index:10;padding:calc(16px + var(--st)) 16px calc(16px + var(--sb))}
-  #callBox{width:100%;max-width:720px;display:grid;gap:14px;text-align:center}
-  #callAvatar{width:96px;height:96px;border-radius:50%;background:var(--accent);margin:0 auto;display:grid;place-items:center;font-size:40px;font-weight:700}
-  #callUI.ringing #callAvatar{animation:pulse 1.2s ease-in-out infinite}
-  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 #3b6cf688}50%{box-shadow:0 0 0 22px #3b6cf600}}
-  #callBox video{width:100%;background:#000;border-radius:12px;max-height:60vh}
-  #localVideo{position:fixed;right:16px;bottom:calc(110px + var(--sb));width:110px!important;border-radius:10px;z-index:11}
-  #callBtns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
-  #callBtns button{min-width:96px;padding:14px 18px;border-radius:999px}
+  #timeline{flex:1;overflow:auto;padding:16px 14px;display:flex;flex-direction:column;gap:3px;-webkit-overflow-scrolling:touch}
+  .bubble{max-width:min(78%,520px);padding:9px 13px 7px;border-radius:20px;background:var(--them);white-space:pre-wrap;word-wrap:break-word;align-self:flex-start;margin-top:5px}
+  .bubble.me{align-self:flex-end;background:linear-gradient(160deg,var(--me2),var(--me))}
+  .bubble.cont{margin-top:0}
+  .bubble:not(.me){border-bottom-left-radius:6px} .bubble.me{border-bottom-right-radius:6px}
+  .bubble .meta{font-size:11px;opacity:.6;margin-top:3px;text-align:right}
+  .sys{align-self:center;color:var(--muted);font-size:12px;padding:6px 12px;margin:10px 0;background:var(--panel);border:1px solid var(--line);border-radius:999px;display:flex;align-items:center;gap:6px}
+  .sys svg{width:14px;height:14px}
+  .sys.missed{color:#ff8a8e}
+  .empty{margin:auto;color:var(--muted);text-align:center;padding:24px;max-width:300px;line-height:1.5}
+  .empty svg{width:40px;height:40px;margin:0 auto 10px;color:var(--faint);stroke-width:1.5}
+  #composer{display:flex;gap:8px;align-items:center;padding:10px 12px calc(10px + var(--sb));border-top:1px solid var(--line);background:var(--bg)}
+  #msg{border-radius:999px;padding:12px 18px;background:var(--panel)}
+  #sendBtn{width:46px;height:46px;flex:none;padding:0;border-radius:50%;display:grid;place-items:center}
+
+  /* call screen */
+  #callUI{position:fixed;inset:0;background:radial-gradient(100% 70% at 50% 20%,#1a2547 0%,#07090ef7 70%);display:grid;place-items:center;z-index:10;padding:calc(24px + var(--st)) 16px calc(24px + var(--sb));backdrop-filter:blur(8px)}
+  #callBox{width:100%;max-width:720px;display:grid;gap:10px;text-align:center}
+  #callAvatar{width:112px;height:112px;border-radius:50%;background:linear-gradient(140deg,var(--me2),#7c4dff);margin:0 auto 8px;display:grid;place-items:center;font-size:46px;font-weight:700}
+  #callUI.ringing #callAvatar{animation:pulse 1.4s ease-in-out infinite}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 #5b84ff77}50%{box-shadow:0 0 0 26px #5b84ff00}}
+  #callTitle{font-size:26px;font-weight:600;letter-spacing:-.01em} #callStatus{color:var(--muted);min-height:1.4em}
+  #callBox video{width:100%;background:#000;border-radius:18px;max-height:60vh}
+  #localVideo{position:fixed;right:16px;bottom:calc(140px + var(--sb));width:110px!important;border-radius:14px!important;z-index:11;box-shadow:0 8px 24px #000a}
+  #callBtns{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin-top:22px}
+  #callBtns button{background:transparent;padding:0;display:grid;justify-items:center;gap:8px;font-size:13px;color:#c9d0de;min-width:72px}
+  #callBtns button::before{content:"";width:66px;height:66px;border-radius:50%;background:#ffffff1f center/28px no-repeat}
+  #callBtns button.danger::before{background-color:var(--danger)} #callBtns button.ok::before{background-color:var(--ok)}
+  #callBtns #declineBtn::before,#callBtns #hangBtn::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 15.5c5-4.7 13-4.7 18 0l-2.4 2.6-3.6-1.7v-2.8c-2-.7-4-.7-6 0v2.8L5.4 18z'/%3E%3C/svg%3E")}
+  #callBtns #answerBtn::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z'/%3E%3C/svg%3E")}
+  #callBtns #muteBtn::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='9' y='2' width='6' height='12' rx='3'/%3E%3Cpath d='M5 10v1a7 7 0 0 0 14 0v-1M12 18v4'/%3E%3C/svg%3E")}
+  #callBtns #camBtn::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='2' y='6' width='14' height='12' rx='2'/%3E%3Cpath d='M16 10l6-3v10l-6-3z'/%3E%3C/svg%3E")}
+  #callBtns button.on::before{background-color:#111;filter:invert(1)}
   @media (max-width:720px){
     #app{grid-template-columns:1fr}
     #app.in-chat #side{display:none} #app:not(.in-chat) #chat{display:none}
-    #back{display:inline-block}
+    #back{display:grid}
   }
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
 
 <section id="login" class="screen">
   <form id="loginForm" class="card">
-    <h1>Private line</h1>
-    <div style="color:var(--muted);font-size:13px">Messages and calls disappear after 24 hours.</div>
+    <div class="brand"><img src="/messaging/icon-192.png" alt="">Crossroads</div>
+    <h1>Private Line</h1>
+    <p>Messages and calls disappear after 24 hours.</p>
     <input id="u" placeholder="Username" autocomplete="username" autocapitalize="none" autocorrect="off" required>
     <input id="p" type="password" placeholder="Password" autocomplete="current-password" required>
     <button class="primary" type="submit">Sign in</button>
@@ -90,7 +141,7 @@
     <input id="np1" type="password" placeholder="New password (8+ characters)" autocomplete="new-password" minlength="8" required>
     <input id="np2" type="password" placeholder="Type it again" autocomplete="new-password" minlength="8" required>
     <button class="primary" type="submit">Save password</button>
-    <button type="button" id="resetCancel">Cancel</button>
+    <button type="button" class="ghost" id="resetCancel">Cancel</button>
     <div class="err" id="resetErr"></div>
   </form>
 </section>
@@ -98,10 +149,10 @@
 <section id="rename" class="screen hidden">
   <form id="renameForm" class="card">
     <h1>Your name</h1>
-    <div style="color:var(--muted);font-size:13px">This is how you show up for everyone else. Signing in still uses your username.</div>
+    <p>This is how you show up for everyone else. Signing in still uses your username.</p>
     <input id="newName" type="text" placeholder="First name" autocomplete="given-name" maxlength="40" required>
     <button class="primary" type="submit">Save name</button>
-    <button type="button" id="renameCancel">Cancel</button>
+    <button type="button" class="ghost" id="renameCancel">Cancel</button>
     <div class="err" id="renameErr"></div>
   </form>
 </section>
@@ -109,26 +160,36 @@
 <section id="app" class="hidden">
   <aside id="side">
     <header>
-      <div><strong id="meName"></strong><small>Your line</small></div>
-      <div class="hbtns"><button id="alertsBtn">Alerts</button><button id="nameBtn" title="Change your name">Name</button><button id="pwBtn" title="Change password">Password</button><button id="logout">Sign out</button></div>
+      <div class="av" id="meAv"></div>
+      <div class="who"><strong id="meName"></strong><small>Your line</small></div>
+      <button class="icon" id="menuBtn" aria-label="Menu" aria-haspopup="true" aria-expanded="false"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></svg></button>
     </header>
+    <div id="menu" class="hidden" role="menu">
+      <button id="alertsBtn" role="menuitem">Alerts</button>
+      <button id="nameBtn" role="menuitem">Change name</button>
+      <button id="pwBtn" role="menuitem">Change password</button>
+      <hr>
+      <button id="logout" role="menuitem">Sign out</button>
+    </div>
     <div id="installBar" class="bar hidden"></div>
     <div id="alertBar" class="bar hidden"></div>
+    <div class="label">Lines</div>
     <div id="contacts"></div>
     <div id="ver">Private Line <span id="appVer"></span> · alerts: <span id="alertState">checking…</span></div>
   </aside>
   <main id="chat">
     <header>
-      <button id="back" aria-label="Back">&larr;</button>
+      <button class="icon" id="back" aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <div class="av sm hidden" id="chatAv"></div>
       <span class="name" id="chatName">Pick a line</span>
-      <button id="callBtn" disabled>Call</button>
-      <button id="videoBtn" disabled>Video</button>
-      <button id="clearBtn" class="danger" disabled title="Delete this conversation for both of you now">Wipe</button>
+      <button class="icon" id="callBtn" disabled aria-label="Voice call" title="Voice call"><svg viewBox="0 0 24 24"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg></button>
+      <button class="icon" id="videoBtn" disabled aria-label="Video call" title="Video call"><svg viewBox="0 0 24 24"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="M16 10l6-3v10l-6-3z"/></svg></button>
+      <button class="icon red" id="clearBtn" disabled aria-label="Wipe conversation" title="Delete this conversation for both of you now"><svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v5M14 11v5"/></svg></button>
     </header>
-    <div id="timeline"><div class="empty">Choose someone to start.</div></div>
+    <div id="timeline"><div class="empty"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Choose someone to start.</div></div>
     <form id="composer">
-      <input id="msg" placeholder="Message (disappears in 24h)" autocomplete="off" disabled>
-      <button class="primary" id="sendBtn" disabled>Send</button>
+      <input id="msg" placeholder="Message" autocomplete="off" enterkeyhint="send" disabled>
+      <button class="primary" id="sendBtn" disabled aria-label="Send"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
     </form>
   </main>
 </section>
@@ -136,8 +197,8 @@
 <div id="callUI" class="hidden">
   <div id="callBox">
     <div id="callAvatar"></div>
-    <div id="callTitle" style="font-size:22px;font-weight:600"></div>
-    <div id="callStatus" style="color:var(--muted)"></div>
+    <div id="callTitle"></div>
+    <div id="callStatus"></div>
     <video id="remoteVideo" autoplay playsinline></video>
     <video id="localVideo" autoplay playsinline muted></video>
     <div id="callBtns">
@@ -163,13 +224,29 @@ const SUPABASE_ANON_KEY = 'sb_publishable_m_BQ-HC1v3-JANssdXJRlA_9TphYPCM';
 const LOGIN_DOMAIN      = 'crossroadsweddingco.shop'; // users are created as username@this-domain (full email also works)
 /* ================================================================================= */
 
-const APP_VERSION = 'v9';
+const APP_VERSION = 'v10';
 const DAY = 24 * 60 * 60 * 1000;
 const RING_MS = 60000;
 const PEER_PREFIX = 'crwco-line-';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const $ = id => document.getElementById(id);
 $('appVer').textContent = APP_VERSION;
+// Avatar: first letter on a color picked from the person's id, so each line keeps its color.
+function avatar(el, p) {
+  if (!el || !p) return;
+  let h = 0; for (const ch of String(p.id)) h = (h * 31 + ch.charCodeAt(0)) % 360;
+  el.style.setProperty('--h', h); el.textContent = (p.display_name || '?').trim().slice(0, 1).toUpperCase();
+}
+// Header menu (Alerts, Change name, Change password, Sign out)
+function closeMenu() { $('menu').classList.add('hidden'); $('menuBtn').setAttribute('aria-expanded', 'false'); }
+$('menuBtn').onclick = e => {
+  e.stopPropagation();
+  const open = $('menu').classList.toggle('hidden') === false;
+  $('menuBtn').setAttribute('aria-expanded', String(open));
+};
+$('menu').addEventListener('click', closeMenu);
+document.addEventListener('click', e => { if (!$('menu').contains(e.target) && e.target !== $('menuBtn')) closeMenu(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMenu(); });
 const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const STANDALONE = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 const params = new URLSearchParams(location.search);
@@ -235,7 +312,7 @@ $('renameForm').onsubmit = async e => {
   if (!name || name.length > 40) { $('renameErr').textContent = 'Use 1 to 40 characters.'; return; }
   const { data, error } = await sb.from('profiles').update({ display_name: name }).eq('id', me.id).select().single();
   if (error) { $('renameErr').textContent = 'Couldn’t save: ' + error.message; return; }
-  lines[me.id] = me = data; $('meName').textContent = me.display_name;
+  lines[me.id] = me = data; $('meName').textContent = me.display_name; avatar($('meAv'), me);
   $('rename').classList.add('hidden'); $('app').classList.remove('hidden');
 };
 // Pick up name changes and newly added lines without a reload.
@@ -244,9 +321,9 @@ async function refreshLines() {
   const { data } = await sb.from('profiles').select('*').order('display_name');
   if (!data) return;
   lines = {}; data.forEach(p => lines[p.id] = p);
-  if (lines[me.id]) { me = lines[me.id]; $('meName').textContent = me.display_name; }
+  if (lines[me.id]) { me = lines[me.id]; $('meName').textContent = me.display_name; avatar($('meAv'), me); }
   renderContacts();
-  if (activeId && lines[activeId]) $('chatName').textContent = lines[activeId].display_name;
+  if (activeId && lines[activeId]) { $('chatName').textContent = lines[activeId].display_name; avatar($('chatAv'), lines[activeId]); }
 }
 
 sb.auth.onAuthStateChange((evt, session) => {
@@ -265,7 +342,7 @@ async function start(uid) {
   data.forEach(p => lines[p.id] = p);
   me = lines[uid];
   if (!me) { alert('This login has no line yet.'); return; }
-  $('meName').textContent = me.display_name;
+  $('meName').textContent = me.display_name; avatar($('meAv'), me);
   $('login').classList.add('hidden'); $('app').classList.remove('hidden');
   // Each step is isolated so one failure (e.g. on a phone) can't stop the others.
   for (const [name, fn] of [['contacts', renderContacts], ['live', subscribe], ['calls', startPeer], ['alerts', () => setupPush(false)], ['install', renderInstall]]) {
@@ -285,9 +362,13 @@ function renderContacts() {
   const box = $('contacts'); box.innerHTML = '';
   Object.values(lines).filter(p => p.id !== me.id).forEach(p => {
     const el = document.createElement('div');
-    el.className = 'contact' + (p.id === activeId ? ' active' : '');
-    const n = document.createElement('span'); n.textContent = p.display_name; el.append(n);
-    if (unread.has(p.id)) { const d = document.createElement('span'); d.className = 'dot'; el.append(d); }
+    const isUnread = unread.has(p.id);
+    el.className = 'contact' + (p.id === activeId ? ' active' : '') + (isUnread ? ' unread' : '');
+    const av = document.createElement('div'); av.className = 'av'; avatar(av, p);
+    const n = document.createElement('div'); n.className = 'nm'; n.textContent = p.display_name;
+    const sub = document.createElement('small'); sub.textContent = isUnread ? 'New activity' : 'Message or call'; n.append(sub);
+    el.append(av, n);
+    if (isUnread) { const d = document.createElement('span'); d.className = 'dot'; el.append(d); }
     el.onclick = () => openChat(p.id);
     box.append(el);
   });
@@ -298,6 +379,7 @@ async function openChat(id) {
   activeId = id; unread.delete(id);
   $('app').classList.add('in-chat');
   $('chatName').textContent = lines[id].display_name;
+  avatar($('chatAv'), lines[id]); $('chatAv').classList.remove('hidden');
   ['callBtn', 'videoBtn', 'clearBtn', 'msg', 'sendBtn'].forEach(b => $(b).disabled = false);
   renderContacts();
   const pair = `and(sender.eq.${me.id},recipient.eq.${id}),and(sender.eq.${id},recipient.eq.${me.id})`;
@@ -338,16 +420,22 @@ function render(scroll) {
   tl.innerHTML = '';
   const items = [...msgs.map(x => ({ t: x.created_at, m: x })), ...calls.map(x => ({ t: x.started_at, c: x }))]
     .filter(i => Date.now() - new Date(i.t) < DAY).sort((a, b) => new Date(a.t) - new Date(b.t));
-  if (!items.length) { tl.innerHTML = '<div class="empty">Nothing here. Everything is wiped 24 hours after it’s sent.</div>'; return; }
+  if (!items.length) { tl.innerHTML = '<div class="empty"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Nothing here yet. Everything is wiped 24 hours after it’s sent.</div>'; return; }
+  let prev = null;
   for (const i of items) {
     const el = document.createElement('div');
     if (i.m) {
-      el.className = 'bubble' + (i.m.sender === me.id ? ' me' : '');
+      const cont = prev && prev.m && prev.m.sender === i.m.sender && new Date(i.t) - new Date(prev.t) < 120000;
+      el.className = 'bubble' + (i.m.sender === me.id ? ' me' : '') + (cont ? ' cont' : '');
       el.textContent = i.m.body;
       const meta = document.createElement('div'); meta.className = 'meta';
       meta.textContent = `${clock(i.t)} · ${left(i.t)}`; el.append(meta);
-    } else { el.className = 'sys'; el.textContent = `${callText(i.c)} · ${clock(i.t)}`; }
-    tl.append(el);
+    } else {
+      el.className = 'sys' + (i.c.status === 'missed' && i.c.callee === me.id ? ' missed' : '');
+      el.innerHTML = i.c.kind === 'video' ? '<svg viewBox="0 0 24 24"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="M16 10l6-3v10l-6-3z"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg>';
+      el.append(`${callText(i.c)} · ${clock(i.t)}`);
+    }
+    tl.append(el); prev = i;
   }
   if (scroll || atBottom) tl.scrollTop = tl.scrollHeight;
 }
@@ -493,7 +581,7 @@ function showErr(where, e) {
 $('alertsBtn').onclick = () => setupPush(true);
 function alertBar(state) {
   $('alertState').textContent = { on: 'on', off: 'off', denied: 'blocked', 'ios-install': 'needs Home Screen app', unsupported: 'not supported', error: 'error' }[state] || state;
-  $('alertsBtn').textContent = state === 'on' ? 'Alerts on' : 'Alerts';
+  $('alertsBtn').textContent = state === 'on' ? 'Alerts are on' : 'Turn on alerts';
   const b = $('alertBar');
   const msg = {
     off: ['Turn on call alerts', 'Get a ring and notifications for calls and messages, even when this app is closed.', 'Turn on'],
@@ -732,11 +820,11 @@ async function hangUp() {
 $('hangBtn').onclick = hangUp;
 $('muteBtn').onclick = () => {
   const t = cur?.local?.getAudioTracks()[0]; if (!t) return;
-  t.enabled = !t.enabled; $('muteBtn').textContent = t.enabled ? 'Mute' : 'Unmute';
+  t.enabled = !t.enabled; $('muteBtn').textContent = t.enabled ? 'Mute' : 'Unmute'; $('muteBtn').classList.toggle('on', !t.enabled);
 };
 $('camBtn').onclick = () => {
   const t = cur?.local?.getVideoTracks()[0]; if (!t) return;
-  t.enabled = !t.enabled; $('camBtn').textContent = t.enabled ? 'Camera off' : 'Camera on';
+  t.enabled = !t.enabled; $('camBtn').textContent = t.enabled ? 'Camera off' : 'Camera on'; $('camBtn').classList.toggle('on', !t.enabled);
 };
 
 function endLocal(note) {
@@ -745,7 +833,7 @@ function endLocal(note) {
   try { cur.peerCall && cur.peerCall.close(); } catch {}
   cur.local && cur.local.getTracks().forEach(t => t.stop());
   $('remoteVideo').srcObject = null; $('localVideo').srcObject = null;
-  $('muteBtn').textContent = 'Mute'; $('camBtn').textContent = 'Camera off';
+  $('muteBtn').textContent = 'Mute'; $('camBtn').textContent = 'Camera off'; $('muteBtn').classList.remove('on'); $('camBtn').classList.remove('on');
   $('callUI').classList.remove('ringing');
   cur = null;
   if (note) { $('callStatus').textContent = note; setTimeout(() => !cur && $('callUI').classList.add('hidden'), 1800); }
