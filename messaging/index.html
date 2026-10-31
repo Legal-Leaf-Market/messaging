@@ -226,7 +226,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_m_BQ-HC1v3-JANssdXJRlA_9TphYPCM';
 const LOGIN_DOMAIN      = 'crossroadsweddingco.shop'; // users are created as username@this-domain (full email also works)
 /* ================================================================================= */
 
-const APP_VERSION = 'v11';
+const APP_VERSION = 'v12';
 const DAY = 24 * 60 * 60 * 1000;
 const RING_MS = 60000;
 const PEER_PREFIX = 'crwco-line-';
@@ -271,10 +271,19 @@ if ('serviceWorker' in navigator) {
 /* ---------- auth ---------- */
 $('loginForm').onsubmit = async e => {
   e.preventDefault(); $('loginErr').textContent = ''; unlockAudio();
-  const u = $('u').value.trim().toLowerCase();
-  const email = u.includes('@') ? u : u + '@' + LOGIN_DOMAIN;
-  const { error } = await sb.auth.signInWithPassword({ email, password: $('p').value });
-  if (error) $('loginErr').textContent = error.status === 400 ? 'Wrong username or password.' : 'Couldn\u2019t reach the server. Check your connection and try again.';
+  const btn = $('loginForm').querySelector('button[type=submit]');
+  if (btn.disabled) return;
+  btn.disabled = true; btn.textContent = 'Signing in\u2026';
+  try {
+    const u = $('u').value.trim().toLowerCase();
+    const email = u.includes('@') ? u : u + '@' + LOGIN_DOMAIN;
+    const { error } = await sb.auth.signInWithPassword({ email, password: $('p').value });
+    if (error) $('loginErr').textContent = error.status === 400 ? 'Wrong username or password.' : 'Couldn\u2019t reach the server. Check your connection and try again.';
+  } catch (err) {
+    $('loginErr').textContent = 'Sign in failed: ' + (err && err.message || err);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Sign in';
+  }
 };
 $('logout').onclick = async () => {
   try {
