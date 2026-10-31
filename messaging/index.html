@@ -95,16 +95,27 @@
   </form>
 </section>
 
+<section id="rename" class="screen hidden">
+  <form id="renameForm" class="card">
+    <h1>Your name</h1>
+    <div style="color:var(--muted);font-size:13px">This is how you show up for everyone else. Signing in still uses your username.</div>
+    <input id="newName" type="text" placeholder="First name" autocomplete="given-name" maxlength="40" required>
+    <button class="primary" type="submit">Save name</button>
+    <button type="button" id="renameCancel">Cancel</button>
+    <div class="err" id="renameErr"></div>
+  </form>
+</section>
+
 <section id="app" class="hidden">
   <aside id="side">
     <header>
       <div><strong id="meName"></strong><small>Your line</small></div>
-      <div class="hbtns"><button id="alertsBtn">Alerts</button><button id="pwBtn" title="Change password">Password</button><button id="logout">Sign out</button></div>
+      <div class="hbtns"><button id="alertsBtn">Alerts</button><button id="nameBtn" title="Change your name">Name</button><button id="pwBtn" title="Change password">Password</button><button id="logout">Sign out</button></div>
     </header>
     <div id="installBar" class="bar hidden"></div>
     <div id="alertBar" class="bar hidden"></div>
     <div id="contacts"></div>
-    <div id="ver">Private Line v7 · alerts: <span id="alertState">checking…</span></div>
+    <div id="ver">Private Line <span id="appVer"></span> · alerts: <span id="alertState">checking…</span></div>
   </aside>
   <main id="chat">
     <header>
@@ -152,12 +163,13 @@ const SUPABASE_ANON_KEY = 'sb_publishable_m_BQ-HC1v3-JANssdXJRlA_9TphYPCM';
 const LOGIN_DOMAIN      = 'crossroadsweddingco.shop'; // users are created as username@this-domain (full email also works)
 /* ================================================================================= */
 
-const APP_VERSION = 'v8';
+const APP_VERSION = 'v9';
 const DAY = 24 * 60 * 60 * 1000;
 const RING_MS = 60000;
 const PEER_PREFIX = 'crwco-line-';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const $ = id => document.getElementById(id);
+$('appVer').textContent = APP_VERSION;
 const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const STANDALONE = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 const params = new URLSearchParams(location.search);
@@ -210,6 +222,32 @@ $('resetForm').onsubmit = async e => {
   const { data } = await sb.auth.getSession();
   if (me) $('app').classList.remove('hidden'); else if (data.session) start(data.session.user.id);
 };
+
+/* change your own display name */
+$('nameBtn').onclick = () => {
+  $('app').classList.add('hidden'); $('rename').classList.remove('hidden');
+  $('renameErr').textContent = ''; $('newName').value = me.display_name; $('newName').focus();
+};
+$('renameCancel').onclick = () => { $('rename').classList.add('hidden'); $('app').classList.remove('hidden'); };
+$('renameForm').onsubmit = async e => {
+  e.preventDefault();
+  const name = $('newName').value.replace(/\s+/g, ' ').trim();
+  if (!name || name.length > 40) { $('renameErr').textContent = 'Use 1 to 40 characters.'; return; }
+  const { data, error } = await sb.from('profiles').update({ display_name: name }).eq('id', me.id).select().single();
+  if (error) { $('renameErr').textContent = 'Couldn’t save: ' + error.message; return; }
+  lines[me.id] = me = data; $('meName').textContent = me.display_name;
+  $('rename').classList.add('hidden'); $('app').classList.remove('hidden');
+};
+// Pick up name changes and newly added lines without a reload.
+async function refreshLines() {
+  if (!me) return;
+  const { data } = await sb.from('profiles').select('*').order('display_name');
+  if (!data) return;
+  lines = {}; data.forEach(p => lines[p.id] = p);
+  if (lines[me.id]) { me = lines[me.id]; $('meName').textContent = me.display_name; }
+  renderContacts();
+  if (activeId && lines[activeId]) $('chatName').textContent = lines[activeId].display_name;
+}
 
 sb.auth.onAuthStateChange((evt, session) => {
   setTimeout(() => { // never call Supabase from inside this callback
@@ -389,7 +427,7 @@ checkForUpdate();
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) return;
   checkForUpdate();
-  checkRinging(); closeNotifications();
+  checkRinging(); closeNotifications(); refreshLines();
   if (me && !cur && peer && (peer.disconnected || !peer.open)) { destroyPeer(); startPeer(); }
 });
 

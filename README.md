@@ -3,6 +3,8 @@
 Private lines with logins. Messages and call logs are deleted automatically after 24 hours.
 Backend: Supabase project `crossroads-private-line` (already set up; `setup.sql` is kept here for reference).
 
+Names: each person can change how they appear with the **Name** button after signing in. Run `setup-names.sql` once so a user can only change their own display name.
+
 
 ## 1. Create the backend (free)
 1. Go to **supabase.com**, sign up, and click **New project**. Pick any name and password, choose the US East region, and wait about 2 minutes.
