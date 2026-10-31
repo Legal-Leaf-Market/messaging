@@ -57,6 +57,18 @@ A website can't play a real ringtone while the phone is locked; only installed n
 - **Android / desktop:** the service worker (`messaging/sw.js`) repeats the alert. This goes live with a normal deploy.
 - **iPhone:** iOS stops service workers right away, so the `push` function repeats the alert from the server. **After changing `supabase/functions/push/index.ts`, redeploy it:** `supabase functions deploy push --project-ref xppyedslhbrnqnymaaxb`, or paste the file into Supabase > Edge Functions > push > Code and click Deploy.
 
+## Ringing your real phone (Twilio)
+A website can't ring the phone's own call screen, so this rings it the old-fashioned way. If an in-app call is still ringing after 8 seconds, Twilio dials the person's real phone number. It rings in their normal Phone app, even locked or asleep, and a voice says "Jake is calling you on Private Line. Open Private Line to answer the voice call." Opening the app shows the incoming call. The phone call hangs up by itself the moment the in-app call is answered, declined or missed. The conversation itself still happens in the app, encrypted; Twilio only carries the wake-up ring.
+
+Turning it on:
+1. **Twilio:** create an account at twilio.com and upgrade it (trial accounts can only call numbers you've verified, and play a trial notice first). Buy one phone number with **Voice**. A local Indiana number is fine. Outgoing voice calls don't need A2P/10DLC registration; that's for texting.
+2. **Database:** run `setup-phone.sql` in Supabase > SQL Editor.
+3. **Secrets:** in Supabase > Edge Functions > Secrets (or `supabase secrets set ... --project-ref xppyedslhbrnqnymaaxb`), add `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` (both on the Twilio console home page) and `TWILIO_FROM_NUMBER` (the number you bought, like `+18125550123`). Optional: `PHONE_WAKE_AFTER_SECONDS` (default 8).
+4. **Redeploy the `push` function** (command above).
+5. **Each person** opens the menu > **Ring my phone** and enters their number. Only they can see it. "Turn off phone ringing" removes it.
+
+Cost: Twilio bills each wake-up as a short outgoing call, about 1 to 2 cents in the US, plus about $1.15 a month for the number. Calls answered in the app within 8 seconds never dial. Without the secrets, or for someone with no number saved, nothing changes. Add the Twilio number to your contacts as "Private Line" so it shows by name.
+
 Phone settings that silence alerts:
 - **iPhone:** the Ring/Silent switch or Action Button must be on Ring, and no Focus or Do Not Disturb can be on. Go to Settings > Notifications > Private Line and turn on **Sounds**.
 - **Android:** go to Settings > Apps > Private Line (or Chrome, if it isn't installed) > Notifications, open the alert category, and pick a **ringtone** as its sound. Android 15 and later can turn down repeated alerts: turn off Settings > Notifications > **Notification cooldown**.

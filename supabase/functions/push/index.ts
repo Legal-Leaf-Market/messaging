@@ -135,6 +135,57 @@ const runInBackground = (p: Promise<unknown>) => {
   return rt?.waitUntil ? (rt.waitUntil(p), undefined) : p;
 };
 
+// Phone wake-up: a website can't ring the phone's own call screen, so if an in-app call is
+// still ringing after WAKE_AFTER seconds, Twilio dials the callee's real phone number. It
+// rings in their normal Phone app and says who is calling and to open Private Line; the
+// call itself stays in the app. The phone call is hung up the moment the in-app call is
+// answered, declined or missed. Needs the secrets TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and
+// TWILIO_FROM_NUMBER; without them this step is skipped and nothing else changes.
+const TW_SID = Deno.env.get("TWILIO_ACCOUNT_SID") ?? "";
+const TW_TOKEN = Deno.env.get("TWILIO_AUTH_TOKEN") ?? "";
+const TW_FROM = Deno.env.get("TWILIO_FROM_NUMBER") ?? "";
+const WAKE_AFTER_MS = Math.max(0, Number(Deno.env.get("PHONE_WAKE_AFTER_SECONDS") ?? "8")) * 1000;
+const WAKE_FOR_MS = 45_000; // matches the in-app ring window the push alerts use
+const xml = (t: string) => t.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" })[c]!);
+async function twilio(path: string, form?: Record<string, string>) {
+  const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${TW_SID}${path}`, {
+    method: form ? "POST" : "GET",
+    headers: { Authorization: "Basic " + btoa(`${TW_SID}:${TW_TOKEN}`), "Content-Type": "application/x-www-form-urlencoded" },
+    body: form ? new URLSearchParams(form) : undefined,
+  });
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(`twilio ${r.status}: ${body?.message ?? ""}`);
+  return body;
+}
+const callStatus = async (id: unknown) =>
+  (await sb.from("calls").select("status").eq("id", id).maybeSingle()).data?.status;
+async function phoneWakeup(callId: unknown, callee: string, callerName: string, kind: string, startedAt: number) {
+  try {
+    if (!TW_SID || !TW_TOKEN || !TW_FROM) return;
+    const { data: ph } = await sb.from("phone_numbers").select("phone").eq("user_id", callee).maybeSingle();
+    if (!ph?.phone) return;
+    // Give the app a few seconds to answer first; skip the phone ring if it already did.
+    await new Promise((r) => setTimeout(r, Math.max(0, startedAt + WAKE_AFTER_MS - Date.now())));
+    if ((await callStatus(callId)) !== "ringing") return;
+    const line = `${xml(callerName)} is calling you on Private Line. Open Private Line to answer the ${kind} call.`;
+    const tw = await twilio("/Calls.json", {
+      To: ph.phone,
+      From: TW_FROM,
+      Timeout: "30",
+      Twiml: `<Response><Say>${line}</Say><Pause length="1"/><Say>${line}</Say></Response>`,
+    });
+    // Watch the in-app call; once it stops ringing (or the window ends), hang up the phone call.
+    while (Date.now() < startedAt + WAKE_FOR_MS && (await callStatus(callId)) === "ringing") {
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+    const now = await twilio(`/Calls/${tw.sid}.json`);
+    if (now.status === "queued" || now.status === "ringing") await twilio(`/Calls/${tw.sid}.json`, { Status: "canceled" });
+    else if (now.status === "in-progress") await twilio(`/Calls/${tw.sid}.json`, { Status: "completed" });
+  } catch (e) {
+    console.error("phone wake-up failed", e); // never affects the in-app call
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   if (req.method === "GET") return json({ publicKey: (await getVapid()).pub });
@@ -171,6 +222,11 @@ Deno.serve(async (req) => {
   const payload = JSON.stringify(note);
   const results = await Promise.allSettled((subs ?? []).map((s: Sub) => send(s, payload, ttl)));
   const apple = (subs ?? []).filter(isApple);
-  if (type === "call" && apple.length) await runInBackground(keepRinging(id, startedAt, apple, payload));
+  if (type === "call") {
+    const kind = note.body.includes("video") ? "video" : "voice";
+    const jobs = [phoneWakeup(id, to, note.title, kind, startedAt)];
+    if (apple.length) jobs.push(keepRinging(id, startedAt, apple, payload));
+    await runInBackground(Promise.allSettled(jobs));
+  }
   return json({ sent: results.filter((r) => r.status === "fulfilled").length, of: subs?.length ?? 0 });
 });

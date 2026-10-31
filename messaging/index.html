@@ -157,6 +157,18 @@
   </form>
 </section>
 
+<section id="phone" class="screen hidden">
+  <form id="phoneForm" class="card">
+    <h1>Ring my phone</h1>
+    <p>If you don&rsquo;t answer a call in the app within a few seconds, your phone rings like a normal call and tells you who&rsquo;s calling. Open Private Line to answer. Only you can see this number.</p>
+    <input id="phoneNum" type="tel" placeholder="(812) 555-0123" autocomplete="tel" inputmode="tel" maxlength="20">
+    <button class="primary" type="submit">Save number</button>
+    <button type="button" class="ghost" id="phoneRemove">Turn off phone ringing</button>
+    <button type="button" class="ghost" id="phoneCancel">Cancel</button>
+    <div class="err" id="phoneErr"></div>
+  </form>
+</section>
+
 <section id="app" class="hidden">
   <aside id="side">
     <header>
@@ -166,6 +178,7 @@
     </header>
     <div id="menu" class="hidden" role="menu">
       <button id="alertsBtn" role="menuitem">Alerts</button>
+      <button id="phoneBtn" role="menuitem">Ring my phone</button>
       <button id="nameBtn" role="menuitem">Change name</button>
       <button id="pwBtn" role="menuitem">Change password</button>
       <hr>
@@ -226,7 +239,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_m_BQ-HC1v3-JANssdXJRlA_9TphYPCM';
 const LOGIN_DOMAIN      = 'crossroadsweddingco.shop'; // users are created as username@this-domain (full email also works)
 /* ================================================================================= */
 
-const APP_VERSION = 'v12';
+const APP_VERSION = 'v13';
 const DAY = 24 * 60 * 60 * 1000;
 const RING_MS = 60000;
 const PEER_PREFIX = 'crwco-line-';
@@ -330,6 +343,38 @@ $('renameForm').onsubmit = async e => {
   if (error) { $('renameErr').textContent = 'Couldn’t save: ' + error.message; return; }
   lines[me.id] = me = data; $('meName').textContent = me.display_name; avatar($('meAv'), me);
   $('rename').classList.add('hidden'); $('app').classList.remove('hidden');
+};
+/* ring my phone: the number Twilio dials when an in-app call isn't answered */
+// US numbers can be typed any way; anything else must start with + and a country code.
+function toE164(v) {
+  const d = v.replace(/[^\d+]/g, '');
+  if (/^\+[1-9]\d{7,14}$/.test(d)) return d;
+  const n = d.replace(/\D/g, '');
+  if (n.length === 10) return '+1' + n;
+  if (n.length === 11 && n[0] === '1') return '+' + n;
+  return null;
+}
+function closePhone() { $('phone').classList.add('hidden'); $('app').classList.remove('hidden'); }
+$('phoneBtn').onclick = async () => {
+  $('app').classList.add('hidden'); $('phone').classList.remove('hidden');
+  $('phoneErr').textContent = ''; $('phoneNum').value = '';
+  const { data, error } = await sb.rpc('get_my_phone');
+  if (error) { $('phoneErr').textContent = 'Phone ringing isn\u2019t set up yet: ' + error.message; return; }
+  $('phoneNum').value = data || ''; $('phoneRemove').classList.toggle('hidden', !data); $('phoneNum').focus();
+};
+$('phoneCancel').onclick = closePhone;
+$('phoneRemove').onclick = async () => {
+  const { error } = await sb.rpc('set_my_phone', { p_phone: null });
+  if (error) { $('phoneErr').textContent = 'Couldn\u2019t save: ' + error.message; return; }
+  closePhone();
+};
+$('phoneForm').onsubmit = async e => {
+  e.preventDefault();
+  const num = toE164($('phoneNum').value);
+  if (!num) { $('phoneErr').textContent = 'Enter a 10-digit US number, or + and the country code.'; return; }
+  const { error } = await sb.rpc('set_my_phone', { p_phone: num });
+  if (error) { $('phoneErr').textContent = 'Couldn\u2019t save: ' + error.message; return; }
+  closePhone();
 };
 // Pick up name changes and newly added lines without a reload.
 async function refreshLines() {
