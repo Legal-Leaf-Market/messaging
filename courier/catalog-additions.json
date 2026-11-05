@@ -1,0 +1,213 @@
+[
+ {
+  "id": "electro-spec-franklin",
+  "name": "Electro-Spec, Inc.",
+  "caps": [
+   "plating",
+   "heat-treat",
+   "chem-film"
+  ],
+  "city": "Franklin",
+  "address": "1800 Commerce Parkway, Franklin, IN 46131",
+  "phone": "(317) 738-9199",
+  "web": "https://www.electro-spec.com/",
+  "hours": null,
+  "lat": null,
+  "lng": null,
+  "note": "Specialty electroplating (nickel, electroless nickel, gold, silver, copper), passivation, and heat treating. Published email: plating@electro-spec.com.",
+  "ownership": "independent",
+  "source": "https://www.electro-spec.com/contact/",
+  "checked": "2026-11-05",
+  "verify": true,
+  "found_by": "gemini"
+ },
+ {
+  "id": "shelbyville-plating-polishing",
+  "name": "Shelbyville Plating & Polishing",
+  "caps": [
+   "plating"
+  ],
+  "city": "Shelbyville",
+  "address": "1010 Saint Joseph St, Shelbyville, IN 46176",
+  "phone": "(317) 398-7040",
+  "web": "https://shelbyvilleplating.com/",
+  "hours": null,
+  "lat": null,
+  "lng": null,
+  "note": "In-shop copper, nickel, and chrome plating line and stainless steel polishing.",
+  "ownership": "independent",
+  "source": "https://shelbyvilleplating.com/",
+  "checked": "2026-11-05",
+  "verify": true,
+  "found_by": "gemini"
+ },
+ {
+  "id": "circle-city-heat-treating-indianapolis",
+  "name": "Circle City Heat Treating Inc. (INCERTEC)",
+  "caps": [
+   "heat-treat"
+  ],
+  "city": "Indianapolis",
+  "address": "2243 Massachusetts Ave, Indianapolis, IN 46218",
+  "phone": "(317) 638-2252",
+  "web": "https://thermalprocessing.com/storefront/circle-city-heat-treating-incorporated/",
+  "hours": "Monday to Friday 6 AM to 5 PM, Saturday 5 AM to 7 AM",
+  "lat": null,
+  "lng": null,
+  "note": "Specialty heat treating and cryogenics in Indianapolis (also listed as INCERTEC Heat Treating).",
+  "ownership": "independent",
+  "source": "https://thermalprocessing.com/storefront/circle-city-heat-treating-incorporated/",
+  "checked": "2026-11-05",
+  "verify": true,
+  "found_by": "gemini"
+ },
+ {
+  "id": "developmental-services-inc-columbus",
+  "name": "Developmental Services, Inc. (DSI)",
+  "caps": [
+   "packaging",
+   "kitting-repack"
+  ],
+  "city": "Columbus",
+  "address": "2920 Tenth St, Columbus, IN 47201",
+  "phone": "(812) 376-9404",
+  "web": "http://www.dsiservices.org/",
+  "hours": null,
+  "lat": null,
+  "lng": null,
+  "note": "501(c)(3) organization with industrial services / subcontracting division in Columbus. Published general email: marketing@dsiservices.org.",
+  "ownership": "independent",
+  "source": "http://www.dsiservices.org/",
+  "checked": "2026-11-05",
+  "verify": true,
+  "found_by": "gemini"
+ },
+ {
+  "id": "jackson-developmental-industries-seymour",
+  "name": "Jackson Developmental Industries (DSI East)",
+  "caps": [
+   "packaging",
+   "kitting-repack"
+  ],
+  "city": "Seymour",
+  "address": "1820 First Avenue, Seymour, IN 47274",
+  "phone": "(812) 376-9404",
+  "web": "http://www.dsiservices.org/",
+  "hours": null,
+  "lat": null,
+  "lng": null,
+  "note": "Seymour facility of Developmental Services, Inc. (DSI East / Jackson Developmental Industries).",
+  "ownership": "independent",
+  "source": "https://carf.org/provider/developmental-services-inc-19681/",
+  "checked": "2026-11-05",
+  "verify": true,
+  "found_by": "gemini"
+ },
+ {
+  "id": "applied-industrial-technologies-columbus",
+  "name": "Applied Industrial Technologies",
+  "caps": [
+   "bearings-pt",
+   "hydraulics",
+   "mro"
+  ],
+  "city": "Columbus",
+  "address": "1720 State St, Columbus, IN 47201",
+  "phone": "(812) 376-4110",
+  "web": "https://www.applied.com/store/COLUMBUS%20(IN)?lat=0.0&long=0.0",
+  "hours": null,
+  "lat": null,
+  "lng": null,
+  "note": "Columbus counter for bearings, power transmission, hydraulics, and MRO. Published branch email: 2168@applied.com.",
+  "ownership": "national",
+  "source": "https://www.applied.com/store/COLUMBUS%20(IN)?lat=0.0&long=0.0",
+  "checked": "2026-11-05",
+  "verify": true,
+  "found_by": "gemini"
+ },
+ {
+  "id": "motion-industries-columbus",
+  "name": "Motion Industries",
+  "caps": [
+   "bearings-pt",
+   "hydraulics",
+   "mro"
+  ],
+  "city": "Columbus",
+  "address": "247 S Gladstone Ave, Columbus, IN 47201",
+  "phone": "(812) 379-2329",
+  "web": "https://bearing-dealers.cmac.ws/motion-industries-inc/936/",
+  "hours": null,
+  "lat": null,
+  "lng": null,
+  "note": "Sources list both 247 S Gladstone Ave and 1589 Southpark Ct Suite A in Columbus. Confirm active counter address before dispatch.",
+  "ownership": "national",
+  "source": "https://bearing-dealers.cmac.ws/motion-industries-inc/936/",
+  "checked": "2026-11-05",
+  "verify": true,
+  "found_by": "gemini"
+ },
+ {
+  "id": "kirby-risk-columbus",
+  "name": "Kirby Risk Electrical Supply",
+  "caps": [
+   "electrical",
+   "mro"
+  ],
+  "city": "Columbus",
+  "address": "835 Repp Dr, Columbus, IN 47201",
+  "phone": "(812) 372-8431",
+  "web": "https://www.kirbyrisk.com/store/columbus",
+  "hours": null,
+  "lat": null,
+  "lng": null,
+  "note": "Electrical and automation supply counter in Columbus.",
+  "ownership": "independent",
+  "source": "https://www.kirbyrisk.com/store/columbus",
+  "checked": "2026-11-05",
+  "verify": true,
+  "found_by": "gemini"
+ },
+ {
+  "id": "sutton-garten-indianapolis",
+  "name": "Sutton-Garten Co.",
+  "caps": [
+   "gases-welding-supply",
+   "mro"
+  ],
+  "city": "Indianapolis",
+  "address": "901 N Senate Ave, Indianapolis, IN 46202",
+  "phone": "(317) 264-3236",
+  "web": "https://suttongarten.com/about-dry-ice-blasting/",
+  "hours": "Monday to Friday 7:30 AM to 5 PM",
+  "lat": null,
+  "lng": null,
+  "note": "Independent distributor of welding supplies, gases, and dry ice. Second Indy branch at 2917 Roosevelt Ave.",
+  "ownership": "independent",
+  "source": "https://suttongarten.com/about-dry-ice-blasting/",
+  "checked": "2026-11-05",
+  "verify": true,
+  "found_by": "gemini"
+ },
+ {
+  "id": "precise-tooling-solutions-columbus",
+  "name": "Precise Tooling Solutions",
+  "caps": [
+   "machining",
+   "tooling"
+  ],
+  "city": "Columbus",
+  "address": "3150 Scott Drive, Columbus, IN 47201",
+  "phone": "(812) 378-0247",
+  "web": "https://www.precisetooling.info/contact-5",
+  "hours": "Monday to Friday 8 AM to 5 PM",
+  "lat": null,
+  "lng": null,
+  "note": "A Noblitt International Corporation company. Also lists (812) 348-0247 and info@precisetooling.com.",
+  "ownership": "independent",
+  "source": "https://www.precisetooling.info/contact-5",
+  "checked": "2026-11-05",
+  "verify": true,
+  "found_by": "gemini"
+ }
+]
