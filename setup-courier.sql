@@ -249,7 +249,7 @@ This agreement is between Private Line Courier ("the Courier") and the person or
 
 11. Remedies. A breach may cause harm that money cannot fully repair, so either side may ask a court for an injunction in addition to any other remedy.
 
-12. General. Indiana law governs this agreement, and the state and federal courts in Bartholomew County, Indiana, have jurisdiction. Electronic acceptance has the same effect as a signature. This agreement does not create a partnership or agency, and it can be changed only by a new version that the Member accepts.
+12. General. Indiana law governs this agreement. Disputes go to the state courts in Bartholomew County, Indiana, or the federal court for the Southern District of Indiana. Electronic acceptance has the same effect as a signature. This agreement does not create a partnership or agency, and it can be changed only by a new version that the Member accepts.
 $nda$, true)
 on conflict (version) do nothing;
 
