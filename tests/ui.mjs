@@ -92,7 +92,7 @@ for (const [label, w, h] of [['desktop', 1280, 860], ['phone', 390, 800]]) {
   await shot(p, `${label}-6-board`); await noHScroll(p, label + ' board');
   await p.getByRole('link', { name: new RegExp(ref) }).click();
   await p.getByRole('heading', { name: 'Send a quote' }).waitFor();
-  check((await p.getByLabel('Rush').inputValue()) !== '0.00', label + ' hot shot suggests a rush charge');
+  check((await p.getByLabel('Delivery').inputValue()) === '57.20', label + ' hot shot is priced from the playbook ($35 + $1.85 a mile, 12 miles)');
   await shot(p, `${label}-7-quote`); await noHScroll(p, label + ' quote');
   await p.getByRole('button', { name: 'Send quote' }).click();
   await p.getByRole('heading', { name: 'Approved by phone?' }).waitFor();

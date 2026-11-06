@@ -13,8 +13,9 @@
   const CONTACT_EMAIL = 'jake@crossroadsweddingco.shop';
   const GOOGLE_TILES_KEY = '';          // optional: a Google Map Tiles key turns on Google satellite imagery
   const NO_CARRY = 'Hazmat and gas cylinders, firearms and ammunition, cannabis or THC products, cash and valuables, live animals, or anything illegal to ship.';
-  // Starting rate card for the price suggestion. Dispatch always sets the real quote.
-  const RATES = { local: 4500, near: 8500, far: 14000, long: 22500, rushPct: 0.5, feePct: 0.15, feeMin: 1500 };
+  // Rate card from the Lead Playbook: $35 local counter run, $35 + $1.85 a mile dedicated hot shot,
+  // $50 a stop on a shared scheduled corridor run. Dispatch always sets the real quote.
+  const RATES = { counter: 3500, base: 3500, perMile: 185, localMiles: 8, sharedStop: 5000, feePct: 0.15, feeMin: 1500 };
   // Airport rides: rough road miles to IND by town, and a starting rate card. Dispatch sets the real quote.
   const AIRPORT_TOWNS = { Greenwood: 22, Whiteland: 25, Franklin: 30, Shelbyville: 40, Edinburgh: 42, Taylorsville: 48, Bloomington: 50, Columbus: 55, Nashville: 55,
     Hope: 65, Greensburg: 65, Seymour: 75, 'North Vernon': 75, Batesville: 80, Brownstown: 85, Scottsburg: 90, Madison: 95 };
@@ -700,15 +701,18 @@
   }
   function suggestQuote(o) {
     if (o.ride) return suggestRide(o.ride);
-    const text = o.stops.map((s) => (s.address || '') + ' ' + s.place_name).join(' ');
+    const text = o.stops.map((x) => (x.address || '') + ' ' + x.place_name).join(' ').toLowerCase();
     let miles = 5;
-    for (const c of Object.keys(DATA.areaMiles)) if (text.toLowerCase().includes(c.toLowerCase())) miles = Math.max(miles, DATA.areaMiles[c]);
-    const courier = miles <= 8 ? RATES.local : miles <= 25 ? RATES.near : miles <= 50 ? RATES.far : RATES.long;
+    for (const c of Object.keys(DATA.areaMiles)) if (text.includes(c.toLowerCase())) miles = Math.max(miles, DATA.areaMiles[c]);
     const parts = o.items.reduce((n, i) => n + (i.store_price_cents || 0), 0);
-    const rush = o.urgency === 'hotshot' ? Math.round(courier * RATES.rushPct) : 0;
     const buying = o.items.some((i) => i.action === 'buy');
     const fee = buying || parts ? Math.max(RATES.feeMin, Math.round(parts * RATES.feePct)) : 0;
-    return { parts, fee, courier, rush, miles };
+    const dedicated = o.urgency === 'hotshot' || o.urgency === 'same_day';
+    let courier, label;
+    if (dedicated && miles <= RATES.localMiles) { courier = RATES.counter; label = 'local counter run, $35 flat'; }
+    else if (dedicated) { courier = RATES.base + RATES.perMile * miles; label = 'dedicated run, $35 plus $1.85 a mile for about ' + miles + ' miles'; }
+    else { const n = Math.max(1, o.stops.length - 1); courier = RATES.sharedStop * n; label = 'shared corridor run, $50 a stop for ' + n + (n === 1 ? ' stop' : ' stops'); }
+    return { parts, fee, courier, rush: 0, miles, label };
   }
   function dispatchPanel(o) {
     const out = [];
