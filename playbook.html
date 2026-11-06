@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Private Line Courier — Lead Playbook & Route Scheduler</title>
+    <style>
+        :root {
+            --primary: #1e3a8a;
+            --primary-light: #3b82f6;
+            --accent: #10b981;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text: #1e293b;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            line-height: 1.5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        header {
+            background: linear-gradient(135deg, #1e3a8a, #1d4ed8);
+            color: white;
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 25px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        header h1 { margin: 0 0 10px 0; font-size: 28px; }
+        header p { margin: 0; opacity: 0.9; font-size: 16px; }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+            margin-bottom: 25px;
+        }
+        .card {
+            background: var(--card-bg);
+            border-radius: 10px;
+            padding: 20px;
+            border: 1px solid var(--border);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .card h2 {
+            font-size: 20px;
+            color: var(--primary);
+            margin-top: 0;
+            border-bottom: 2px solid #f1f5f9;
+            padding-bottom: 10px;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .badge-scheduled { background: #dbeafe; color: #1e40af; }
+        .badge-ondemand { background: #d1fae5; color: #065f46; }
+        .badge-counter { background: #fef3c7; color: #92400e; }
+        
+        .route-step {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+        .step-num {
+            background: var(--primary-light);
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+            margin-right: 12px;
+            flex-shrink: 0;
+        }
+        .step-info { font-size: 14px; }
+        .step-info strong { color: var(--text); }
+        .step-info span { color: var(--text-muted); font-size: 13px; display: block; }
+        
+        /* Interactive Tabs */
+        .tabs { display: flex; gap: 10px; margin-bottom: 15px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+        .tab-btn {
+            background: #e2e8f0;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+        .tab-btn.active { background: var(--primary); color: white; }
+        
+        /* Directory Table */
+        .search-bar { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; margin-bottom: 15px; box-sizing: border-box; }
+        table { width: 100%; border-collapse: collapse; text-align: left; font-size: 14px; }
+        th, td { padding: 12px; border-bottom: 1px solid var(--border); }
+        th { background-color: #f1f5f9; color: var(--text); font-weight: 600; }
+        tr:hover { background-color: #f8fafc; }
+        
+        a.tel-link {
+            color: var(--primary-light);
+            text-decoration: none;
+            font-weight: bold;
+        }
+        a.tel-link:hover { text-decoration: underline; }
+        
+        /* Script Box */
+        .script-box {
+            background: #f8fafc;
+            border-left: 4px solid var(--primary-light);
+            padding: 15px;
+            border-radius: 4px;
+            font-size: 14px;
+            line-height: 1.6;
+            margin-top: 10px;
+        }
+        
+        /* Calculator */
+        .calc-input {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        .calc-field { flex: 1; }
+        .calc-field label { display: block; font-size: 12px; color: var(--text-muted); font-weight: bold; margin-bottom: 4px; }
+        .calc-field input, .calc-field select { width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; box-sizing: border-box; }
+        .calc-result {
+            background: #ecfdf5;
+            border: 1px solid #a7f3d0;
+            padding: 15px;
+            border-radius: 6px;
+            text-align: center;
+        }
+        .calc-result .val { font-size: 24px; font-weight: bold; color: #047857; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>Private Line Courier — Operating Model & Lead Playbook</h1>
+        <p>Two-Tier Logistics System: Scheduled Shared Corridor Milk-Runs & Local On-Demand Counter Runners</p>
+    </header>
+
+    <!-- Two-Tier Strategy Highlights -->
+    <div class="grid">
+        <div class="card">
+            <h2>Tier 1: Scheduled Shared Corridor Milk-Runs</h2>
+            <p><span class="badge badge-scheduled">Booked 2–3 Days Out</span></p>
+            <p>Maximizes revenue by density-stacking 3 to 5 regional stops into a single corridor trip. Lowers per-client cost ($50–$85 flat stop) while generating $150–$350+ revenue on ~$18 gas.</p>
+            <ul>
+                <li><strong>South I-65 Corridor:</strong> Edinburgh → Columbus → Seymour → Clarksville / River Ridge.</li>
+                <li><strong>North I-65 Loop:</strong> Columbus → Edinburgh → Franklin → South Indy (Outside Processing).</li>
+            </ul>
+        </div>
+        <div class="card">
+            <h2>Tier 2: Local On-Demand / Counter Runners</h2>
+            <p><span class="badge badge-ondemand">Dedicated Local Drivers</span></p>
+            <p>Immediate dispatch for urgent tool crib, maintenance, MRO parts counter pickups & inter-plant emergency runs within Columbus/Edinburgh.</p>
+            <ul>
+                <li><strong>Supply Counters:</strong> Applied Industrial, Kirby Risk, Motion Industries, Fastenal, Airgas, Linde.</li>
+                <li><strong>Plant Cribs:</strong> NTN Driveshaft, Enkei, Rightway, Toyota Material Handling, Cummins, Hisada.</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Corridor Routes Detailed Section -->
+    <div class="grid">
+        <div class="card">
+            <h2>South I-65 Corridor Milk-Run</h2>
+            <div class="route-step">
+                <div class="step-num">1</div>
+                <div class="step-info">
+                    <strong>Quick Turn Anodizing (Anchor)</strong>
+                    <span>6973 S US Hwy 31, Edinburgh, IN | (877) 716-1150</span>
+                </div>
+            </div>
+            <div class="route-step">
+                <div class="step-num">2</div>
+                <div class="step-info">
+                    <strong>Jackson Developmental Industries</strong>
+                    <span>1820 First Ave, Seymour, IN</span>
+                </div>
+            </div>
+            <div class="route-step">
+                <div class="step-num">3</div>
+                <div class="step-info">
+                    <strong>Puneet / Clarksville Shared Drop</strong>
+                    <span>Clarksville, IN | $50 Flat Shared Truck Drop (~10 boxes)</span>
+                </div>
+            </div>
+            <div class="route-step">
+                <div class="step-num">4</div>
+                <div class="step-info">
+                    <strong>River Ridge Machine & Tool Shops</strong>
+                    <span>Jeffersonville / Clarksville Regional Corridor</span>
+                </div>
+            </div>
+            <p style="background:#e0f2fe; padding:10px; border-radius:6px; font-size:13px; color:#0369a1; margin-top:15px;">
+                <strong>Economics:</strong> 3–5 Stacks @ $50–$85/stop = $150–$350+ Gross Revenue | ~$18 Gas Cost.
+            </p>
+        </div>
+
+        <div class="card">
+            <h2>North I-65 Outside-Processing Loop</h2>
+            <div class="route-step">
+                <div class="step-num">1</div>
+                <div class="step-info">
+                    <strong>Columbus CNC & Tooling Shops (Pickup)</strong>
+                    <span>Boyer Machine, Precise Tooling (3150 Scott Dr), Cunningham Pattern, Quality Machine, Noblitt, Falcon</span>
+                </div>
+            </div>
+            <div class="route-step">
+                <div class="step-num">2</div>
+                <div class="step-info">
+                    <strong>Quick Turn Anodizing</strong>
+                    <span>Edinburgh, IN | Finishing drop/pickup</span>
+                </div>
+            </div>
+            <div class="route-step">
+                <div class="step-num">3</div>
+                <div class="step-info">
+                    <strong>Electro-Spec Inc. (Plating & Heat Treat)</strong>
+                    <span>1800 Commerce Pkwy, Franklin, IN | (317) 738-9199</span>
+                </div>
+            </div>
+            <div class="route-step">
+                <div class="step-num">4</div>
+                <div class="step-info">
+                    <strong>Shelbyville Plating & Circle City Heat Treating</strong>
+                    <span>Shelbyville (317) 398-7040 & Indy (317) 638-2252</span>
+                </div>
+            </div>
+            <p style="background:#fef3c7; padding:10px; border-radius:6px; font-size:13px; color:#92400e; margin-top:15px;">
+                <strong>Key Value:</strong> Eliminates CNC shop downtime waiting for heat treat & anodizing runs.
+            </p>
+        </div>
+    </div>
+
+    <!-- Interactive Call Scripts -->
+    <div class="card" style="margin-bottom: 25px;">
+        <h2>Interactive Call Scripts & Objection Handling</h2>
+        <div class="tabs">
+            <button class="tab-btn active" onclick="showScript('milkrun')">Shared Corridor Pitch</button>
+            <button class="tab-btn" onclick="showScript('counter')">Local Parts / Counter Pitch</button>
+            <button class="tab-btn" onclick="showScript('objection-ups')">Objection: "We Use UPS/FedEx"</button>
+            <button class="tab-btn" onclick="showScript('objection-in-house')">Objection: "We Have Our Own Truck"</button>
+        </div>
+        <div id="script-content" class="script-box">
+            <!-- Dynamic Script -->
+        </div>
+    </div>
+
+    <!-- Pricing Calculator -->
+    <div class="card" style="margin-bottom: 25px;">
+        <h2>Route Revenue & Pricing Estimator</h2>
+        <div class="calc-input">
+            <div class="calc-field">
+                <label>Tier / Delivery Type</label>
+                <select id="calc-tier" onchange="calculateRate()">
+                    <option value="shared">Tier 1: Shared Corridor Milk-Run ($55/stop base)</option>
+                    <option value="dedicated">Hot Shot Dedicated Run ($1.85/mile + $35 flag)</option>
+                    <option value="counter">Tier 2: Local Counter / Tool Crib Run ($35 flat local)</option>
+                </select>
+            </div>
+            <div class="calc-field">
+                <label>Number of Stops / Deliveries</label>
+                <input type="number" id="calc-stops" value="4" min="1" oninput="calculateRate()">
+            </div>
+            <div class="calc-field">
+                <label>Estimated Total Miles</label>
+                <input type="number" id="calc-miles" value="95" min="1" oninput="calculateRate()">
+            </div>
+        </div>
+        <div class="calc-result">
+            Estimated Route Revenue: <span id="calc-total" class="val">$220.00</span>
+            <div style="font-size:12px; color:var(--text-muted); margin-top:5px;" id="calc-breakdown">
+                Estimated Fuel: ~$18.20 | Estimated Net Margin: ~91%
+            </div>
+        </div>
+    </div>
+
+    <!-- Lead Directory Table -->
+    <div class="card">
+        <h2>Verified Lead Directory & Logistics Targets</h2>
+        <input type="text" id="directory-search" class="search-bar" placeholder="Search by name, city, corridor, or specialty..." onkeyup="filterDirectory()">
+        
+        <div class="tabs">
+            <button class="tab-btn active" onclick="filterCategory('ALL')">All Leads</button>
+            <button class="tab-btn" onclick="filterCategory('South I-65')">South I-65 Corridor</button>
+            <button class="tab-btn" onclick="filterCategory('North I-65')">North I-65 Outside Proc</button>
+            <button class="tab-btn" onclick="filterCategory('Counter')">Supply Counters</button>
+            <button class="tab-btn" onclick="filterCategory('Plant')">Tier 1/2 Plants</button>
+        </div>
+
+        <table id="directory-table">
+            <thead>
+                <tr>
+                    <th>Company Name</th>
+                    <th>Category / Role</th>
+                    <th>Address / Location</th>
+                    <th>Phone / Contact</th>
+                    <th>Primary Lane</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- South I-65 -->
+                <tr data-category="South I-65">
+                    <td><strong>Quick Turn Anodizing</strong></td>
+                    <td>Anodizing Anchor</td>
+                    <td>6973 S US Hwy 31, Edinburgh, IN</td>
+                    <td><a class="tel-link" href="tel:8777161150">(877) 716-1150</a></td>
+                    <td><span class="badge badge-scheduled">South I-65</span></td>
+                </tr>
+                <tr data-category="South I-65">
+                    <td><strong>Jackson Developmental Industries</strong></td>
+                    <td>Assembly / Subcontract</td>
+                    <td>1820 First Ave, Seymour, IN</td>
+                    <td><a class="tel-link" href="tel:8125228414">(812) 522-8414</a></td>
+                    <td><span class="badge badge-scheduled">South I-65</span></td>
+                </tr>
+                <tr data-category="South I-65">
+                    <td><strong>Puneet / Clarksville Shared Drop</strong></td>
+                    <td>Regional Freight Anchor</td>
+                    <td>Clarksville / River Ridge, IN</td>
+                    <td><a class="tel-link" href="tel:8122800000">(812) 280-0000</a></td>
+                    <td><span class="badge badge-scheduled">South I-65</span></td>
+                </tr>
+
+                <!-- North I-65 -->
+                <tr data-category="North I-65">
+                    <td><strong>Precise Tooling Solutions</strong></td>
+                    <td>Precision CNC Shop</td>
+                    <td>3150 Scott Dr, Columbus, IN</td>
+                    <td><a class="tel-link" href="tel:8123781200">(812) 378-1200</a></td>
+                    <td><span class="badge badge-scheduled">North I-65</span></td>
+                </tr>
+                <tr data-category="North I-65">
+                    <td><strong>Boyer Machine & Tool</strong></td>
+                    <td>CNC Precision Machining</td>
+                    <td>Columbus, IN</td>
+                    <td><a class="tel-link" href="tel:8123728456">(812) 372-8456</a></td>
+                    <td><span class="badge badge-scheduled">North I-65</span></td>
+                </tr>
+                <tr data-category="North I-65">
+                    <td><strong>Electro-Spec Inc.</strong></td>
+                    <td>Plating & Heat Treat</td>
+                    <td>1800 Commerce Pkwy, Franklin, IN</td>
+                    <td><a class="tel-link" href="tel:3177389199">(317) 738-9199</a></td>
+                    <td><span class="badge badge-scheduled">North I-65</span></td>
+                </tr>
+                <tr data-category="North I-65">
+                    <td><strong>Shelbyville Plating</strong></td>
+                    <td>Industrial Metal Finishing</td>
+                    <td>1010 Saint Joseph St, Shelbyville, IN</td>
+                    <td><a class="tel-link" href="tel:3173987040">(317) 398-7040</a></td>
+                    <td><span class="badge badge-scheduled">North I-65</span></td>
+                </tr>
+                <tr data-category="North I-65">
+                    <td><strong>Circle City Heat Treating</strong></td>
+                    <td>Thermal Processing</td>
+                    <td>2243 Massachusetts Ave, Indianapolis, IN</td>
+                    <td><a class="tel-link" href="tel:3176382252">(317) 638-2252</a></td>
+                    <td><span class="badge badge-scheduled">North I-65</span></td>
+                </tr>
+
+                <!-- Counter Leads -->
+                <tr data-category="Counter">
+                    <td><strong>Applied Industrial Technologies</strong></td>
+                    <td>MRO & Bearings Counter</td>
+                    <td>1720 State St, Columbus, IN</td>
+                    <td><a class="tel-link" href="tel:8123764110">(812) 376-4110</a></td>
+                    <td><span class="badge badge-counter">Local Counter</span></td>
+                </tr>
+                <tr data-category="Counter">
+                    <td><strong>Kirby Risk Electrical Supply</strong></td>
+                    <td>Electrical & Industrial Counter</td>
+                    <td>835 Repp Dr, Columbus, IN</td>
+                    <td><a class="tel-link" href="tel:8123728431">(812) 372-8431</a></td>
+                    <td><span class="badge badge-counter">Local Counter</span></td>
+                </tr>
+                <tr data-category="Counter">
+                    <td><strong>Motion Industries</strong></td>
+                    <td>Industrial Automation / Hydraulics</td>
+                    <td>247 S Gladstone Ave, Columbus, IN</td>
+                    <td><a class="tel-link" href="tel:8123792329">(812) 379-2329</a></td>
+                    <td><span class="badge badge-counter">Local Counter</span></td>
+                </tr>
+                <tr data-category="Counter">
+                    <td><strong>Fastenal / Airgas / Linde</strong></td>
+                    <td>Fasteners & Industrial Gases</td>
+                    <td>Columbus Industrial Park, IN</td>
+                    <td><a class="tel-link" href="tel:8123700000">(812) 370-0000</a></td>
+                    <td><span class="badge badge-counter">Local Counter</span></td>
+                </tr>
+
+                <!-- Plant Maintenance -->
+                <tr data-category="Plant">
+                    <td><strong>Toyota Material Handling</strong></td>
+                    <td>$100M Electric Forklift Plant</td>
+                    <td>Columbus, IN</td>
+                    <td><a class="tel-link" href="tel:8123720141">(812) 372-0141</a></td>
+                    <td><span class="badge badge-ondemand">Plant Tool Crib</span></td>
+                </tr>
+                <tr data-category="Plant">
+                    <td><strong>NTN Driveshaft</strong></td>
+                    <td>Automotive Drivetrain Plant</td>
+                    <td>Columbus, IN</td>
+                    <td><a class="tel-link" href="tel:8123720000">(812) 372-0000</a></td>
+                    <td><span class="badge badge-ondemand">Plant Tool Crib</span></td>
+                </tr>
+                <tr data-category="Plant">
+                    <td><strong>Enkei America</strong></td>
+                    <td>Aluminum Wheel Facility</td>
+                    <td>Columbus, IN</td>
+                    <td><a class="tel-link" href="tel:8123722524">(812) 372-2524</a></td>
+                    <td><span class="badge badge-ondemand">Plant Tool Crib</span></td>
+                </tr>
+                <tr data-category="Plant">
+                    <td><strong>Rightway Fasteners</strong></td>
+                    <td>Automotive Fastener Mfg</td>
+                    <td>Columbus, IN</td>
+                    <td><a class="tel-link" href="tel:8123723300">(812) 372-3300</a></td>
+                    <td><span class="badge badge-ondemand">Plant Tool Crib</span></td>
+                </tr>
+                <tr data-category="Plant">
+                    <td><strong>Cummins Tech & Mfg Facilities</strong></td>
+                    <td>Engine & Components Plants</td>
+                    <td>Columbus, IN</td>
+                    <td><a class="tel-link" href="tel:8123775000">(812) 377-5000</a></td>
+                    <td><span class="badge badge-ondemand">Plant Tool Crib</span></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    const scripts = {
+        'milkrun': `<strong>Corridor Milk-Run Pitch:</strong><br>
+"Hi [Contact Name], this is [Name] with Private Line Courier. We run a scheduled shared-corridor milk-run down I-65 twice a week connecting Columbus and Edinburgh machine shops directly with outside processors like Quick Turn Anodizing, Electro-Spec, and Clarksville drops.<br><br>
+Because we stack multiple stops, we drop your per-run delivery cost down to a flat $50–$65 per stop with zero transit damage or depot delays. Do you have parts heading to anodizing or heat treat this Tuesday or Thursday?"`,
+        
+        'counter': `<strong>Local Parts & Counter Runner Pitch:</strong><br>
+"Hi [Shipping Manager / Maintenance Lead], I'm calling from Private Line Courier here in Columbus. We run dedicated local counter runners specifically for emergency parts pickups from Kirby Risk, Applied Industrial, and Motion Industries straight to plant maintenance cribs.<br><br>
+When a line goes down or a technician needs a valve or bearing immediately, we pick up at the counter and deliver straight to your crib in under 45 minutes. Can I send you a quick 1-page rate card?"`,
+
+        'objection-ups': `<strong>Handling "We Use UPS / FedEx":</strong><br>
+"We love UPS for standard small boxes! But for precision machined parts going to anodizing or heat treat, UPS requires heavy boxing, packaging time, and 24-48 hour depot transit time. Our shared corridor milk-run picks up parts right off your dock in totes or racks and delivers same-day without re-packaging or risk of freight damage, often at less than freight costs."`,
+
+        'objection-in-house': `<strong>Handling "We Have Our Own Drivers / Vans":</strong><br>
+"That makes total sense for full truckloads! But sending a shop technician or foreman on a 2-hour round trip to Franklin or Edinburgh costs you $30+/hr plus wear and tear and lost shop floor production. We handle those routine outside-processing drops for $50 flat so your machinist stays at their CNC machine."`
+    };
+
+    function showScript(key) {
+        document.getElementById('script-content').innerHTML = scripts[key];
+        document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
+        event.target.classList.add('active');
+    }
+
+    // Initialize default script
+    showScript('milkrun');
+
+    function calculateRate() {
+        const tier = document.getElementById('calc-tier').value;
+        const stops = parseInt(document.getElementById('calc-stops').value) || 1;
+        const miles = parseInt(document.getElementById('calc-miles').value) || 1;
+
+        let total = 0;
+        if (tier === 'shared') {
+            total = stops * 55;
+        } else if (tier === 'dedicated') {
+            total = 35 + (miles * 1.85);
+        } else if (tier === 'counter') {
+            total = stops * 35;
+        }
+
+        const estFuel = (miles / 18) * 3.45;
+        const margin = total > 0 ? (((total - estFuel) / total) * 100).toFixed(0) : 0;
+
+        document.getElementById('calc-total').innerText = '$' + total.toFixed(2);
+        document.getElementById('calc-breakdown').innerText = `Estimated Fuel: ~$${estFuel.toFixed(2)} | Estimated Margin: ~${margin}%`;
+    }
+
+    function filterDirectory() {
+        const q = document.getElementById('directory-search').value.toLowerCase();
+        const rows = document.querySelectorAll('#directory-table tbody tr');
+        rows.forEach(row => {
+            const text = row.innerText.toLowerCase();
+            row.style.display = text.includes(q) ? '' : 'none';
+        });
+    }
+
+    function filterCategory(cat) {
+        const rows = document.querySelectorAll('#directory-table tbody tr');
+        rows.forEach(row => {
+            if (cat === 'ALL' || row.getAttribute('data-category') === cat) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    }
+</script>
+
+</body>
+</html>
