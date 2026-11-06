@@ -65,12 +65,31 @@ create table if not exists public.cc_access_requests (
   created_at timestamptz not null default now()
 );
 
+-- Airport ride requests from people without an account. Dispatch books them by hand.
+create table if not exists public.cc_ride_requests (
+  id bigint generated always as identity primary key,
+  name text not null,
+  phone text not null,
+  email text,
+  direction text not null check (direction in ('to_ind', 'from_ind')),
+  town text,
+  address text not null,
+  flight text,
+  flight_at timestamptz,
+  pickup_at timestamptz,
+  passengers int not null check (passengers between 1 and 7),
+  bags int not null default 0 check (bags between 0 and 20),
+  notes text,
+  status text not null default 'new' check (status in ('new', 'booked', 'declined')),
+  created_at timestamptz not null default now()
+);
+
 create sequence if not exists public.cc_order_seq start 1001;
 
 create table if not exists public.cc_orders (
   id uuid primary key default gen_random_uuid(),
   ref text unique not null default ('PL-' || nextval('public.cc_order_seq')),
-  kind text not null default 'courier' check (kind in ('courier', 'purchase', 'process', 'transfer')),
+  kind text not null default 'courier' check (kind in ('courier', 'purchase', 'process', 'transfer', 'ride')),
   status text not null default 'requested' check (status in
     ('requested', 'quoted', 'approved', 'declined', 'dispatching', 'assigned', 'in_progress', 'delivered', 'closed', 'cancelled')),
   urgency text not null default 'same_day' check (urgency in ('hotshot', 'same_day', 'next_day', 'scheduled')),
@@ -82,9 +101,14 @@ create table if not exists public.cc_orders (
   blind boolean not null default true,
   need_by timestamptz,
   invoice_ref text,
+  ride jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+-- For a database that already ran an earlier version of this file.
+alter table public.cc_orders add column if not exists ride jsonb;
+alter table public.cc_orders drop constraint if exists cc_orders_kind_check;
+alter table public.cc_orders add constraint cc_orders_kind_check check (kind in ('courier', 'purchase', 'process', 'transfer', 'ride'));
 create index if not exists cc_orders_org_idx on public.cc_orders (org_id, created_at desc);
 create index if not exists cc_orders_status_idx on public.cc_orders (status, created_at desc);
 create index if not exists cc_orders_driver_idx on public.cc_orders (driver_id, status);
@@ -205,7 +229,7 @@ create table if not exists public.cc_driver_pos (
 
 -- Lock every table. Reads and writes go through the functions below.
 do $$ declare t text; begin
-  foreach t in array array['cc_orgs','cc_members','cc_nda_versions','cc_nda_acceptances','cc_access_requests',
+  foreach t in array array['cc_orgs','cc_members','cc_nda_versions','cc_nda_acceptances','cc_access_requests','cc_ride_requests',
     'cc_orders','cc_stops','cc_items','cc_quotes','cc_events','cc_order_messages','cc_attachments','cc_notifications','cc_driver_pos']
   loop
     execute format('alter table public.%I enable row level security', t);
@@ -635,7 +659,7 @@ begin
     perform cc_log(o.id, 'arrived', jsonb_build_object('stop', s.seq, 'kind', s.kind) || here);
   elsif p_action = 'done' then
     if s.status <> 'arrived' then raise exception 'Mark that you arrived first.'; end if;
-    if s.kind = 'drop' and char_length(who) < 2 then raise exception 'Get the name of the person who received it.'; end if;
+    if s.kind = 'drop' and o.kind <> 'ride' and char_length(who) < 2 then raise exception 'Get the name of the person who received it.'; end if;
     update cc_stops set status = 'done', done_at = now(), received_by = nullif(left(who, 120), ''), note = left(btrim(p_note), 500),
       done_lat = p_lat, done_lng = p_lng where id = p_stop;
     perform cc_log(o.id, case s.kind when 'drop' then 'delivered_stop' when 'process' then 'processed' else 'picked_up' end,
@@ -729,7 +753,7 @@ begin
   if r in ('owner', 'dispatcher') then
     return coalesce((select jsonb_agg(x order by x->>'created_at' desc) from (
       select jsonb_build_object('id', o.id, 'ref', o.ref, 'kind', o.kind, 'status', o.status, 'urgency', o.urgency, 'title', o.title,
-        'need_by', o.need_by, 'created_at', o.created_at, 'org_name', g.name, 'driver_name', d.display_name, 'driver_id', o.driver_id,
+        'need_by', o.need_by, 'created_at', o.created_at, 'org_name', g.name, 'driver_name', d.display_name, 'driver_id', o.driver_id, 'ride', o.ride,
         'total_cents', (select total_cents from cc_quotes q where q.order_id = o.id and q.status in ('sent', 'accepted') order by q.id desc limit 1),
         'stops', (select count(*) from cc_stops s where s.order_id = o.id),
         'stops_done', (select count(*) from cc_stops s where s.order_id = o.id and s.status = 'done'),
@@ -742,7 +766,7 @@ begin
     return coalesce((select jsonb_agg(x order by x->>'created_at' desc) from (
       select jsonb_build_object('id', o.id, 'ref', o.ref, 'kind', o.kind, 'status', o.status, 'urgency', o.urgency,
         'title', case when o.blind then null else o.title end,
-        'need_by', o.need_by, 'created_at', o.created_at, 'driver_id', o.driver_id, 'mine', o.driver_id = auth.uid(),
+        'need_by', o.need_by, 'created_at', o.created_at, 'driver_id', o.driver_id, 'mine', o.driver_id = auth.uid(), 'ride', o.ride,
         'stops', (select count(*) from cc_stops s where s.order_id = o.id),
         'stops_done', (select count(*) from cc_stops s where s.order_id = o.id and s.status = 'done')) x
       from cc_orders o
@@ -752,7 +776,7 @@ begin
   else
     return coalesce((select jsonb_agg(x order by x->>'created_at' desc) from (
       select jsonb_build_object('id', o.id, 'ref', o.ref, 'kind', o.kind, 'status', o.status, 'urgency', o.urgency, 'title', o.title,
-        'need_by', o.need_by, 'created_at', o.created_at,
+        'need_by', o.need_by, 'created_at', o.created_at, 'ride', o.ride,
         'total_cents', (select total_cents from cc_quotes q where q.order_id = o.id and q.status in ('sent', 'accepted') order by q.id desc limit 1),
         'stops', (select count(*) from cc_stops s where s.order_id = o.id),
         'stops_done', (select count(*) from cc_stops s where s.order_id = o.id and s.status = 'done')) x
@@ -785,7 +809,7 @@ begin
     'id', o.id, 'ref', o.ref, 'kind', o.kind, 'status', o.status, 'urgency', o.urgency, 'blind', o.blind,
     'title', case when show_cargo then o.title end, 'notes', case when show_cargo then o.notes end,
     'need_by', o.need_by, 'created_at', o.created_at, 'updated_at', o.updated_at, 'invoice_ref', case when side <> 'driver' then o.invoice_ref end,
-    'side', side,
+    'side', side, 'ride', o.ride,
     'stops', coalesce((select jsonb_agg(jsonb_build_object(
         'id', s.id, 'seq', s.seq, 'kind', s.kind, 'place_name', s.place_name, 'address', s.address, 'supplier_slug', s.supplier_slug,
         'contact', case when side = 'client' or o.driver_id = auth.uid() or side = 'dispatch' then s.contact end,
@@ -1049,6 +1073,115 @@ drop trigger if exists cc_notifications_push on public.cc_notifications;
 create trigger cc_notifications_push after insert on public.cc_notifications
   for each row execute function public.cc_push_notify();
 
+
+-- ── Airport rides ────────────────────────────────────────────────────────
+-- Indianapolis International Airport. Pickups from the airport meet at the Ground Transportation
+-- Center, first floor of the terminal garage, where the airport sends shared rides and car services.
+create or replace function public.cc_ride_check(p jsonb) returns void
+language plpgsql immutable as $$
+begin
+  if coalesce(p->>'direction', '') not in ('to_ind', 'from_ind') then raise exception 'Pick to the airport or from the airport.'; end if;
+  if char_length(btrim(coalesce(p->>'address', ''))) not between 5 and 200 then raise exception 'Add the address for the other end of the ride.'; end if;
+  if coalesce((p->>'passengers')::int, 0) not between 1 and 7 then raise exception 'Up to 7 riders per vehicle. Call for a bigger group.'; end if;
+  if coalesce((p->>'bags')::int, 0) not between 0 and 20 then raise exception 'Bags has to be a number from 0 to 20.'; end if;
+  if p->>'direction' = 'to_ind' and nullif(p->>'pickup_at', '') is null then raise exception 'Add when we should pick you up.'; end if;
+  if p->>'direction' = 'from_ind' and nullif(p->>'flight_at', '') is null then raise exception 'Add when the flight lands.'; end if;
+end $$;
+revoke execute on function public.cc_ride_check(jsonb) from public, anon, authenticated;
+
+create or replace function public.cc_ride_stops(p jsonb) returns jsonb
+language sql immutable as $$
+  select case when p->>'direction' = 'to_ind' then jsonb_build_array(
+      jsonb_build_object('kind', 'pickup', 'place_name', coalesce(nullif(btrim(p->>'place_name'), ''), 'Pickup'), 'address', btrim(p->>'address'),
+        'contact', p->>'passenger_name', 'instructions', p->>'notes'),
+      jsonb_build_object('kind', 'drop', 'place_name', 'Indianapolis International Airport (IND)', 'address', '7800 Col. H. Weir Cook Memorial Dr, Indianapolis, IN 46241',
+        'instructions', 'Departures curb, upper level. ' || coalesce('Airline: ' || nullif(btrim(p->>'flight'), ''), ''), 'lat', 39.7173, 'lng', -86.2944))
+    else jsonb_build_array(
+      jsonb_build_object('kind', 'pickup', 'place_name', 'Indianapolis International Airport (IND)', 'address', '7800 Col. H. Weir Cook Memorial Dr, Indianapolis, IN 46241',
+        'contact', p->>'passenger_name', 'instructions', 'Meet at the Ground Transportation Center, first floor of the terminal garage. ' || coalesce('Flight: ' || nullif(btrim(p->>'flight'), ''), ''),
+        'lat', 39.7173, 'lng', -86.2944),
+      jsonb_build_object('kind', 'drop', 'place_name', coalesce(nullif(btrim(p->>'place_name'), ''), 'Drop-off'), 'address', btrim(p->>'address'), 'instructions', p->>'notes'))
+  end;
+$$;
+revoke execute on function public.cc_ride_stops(jsonb) from public, anon, authenticated;
+
+-- Book a ride from an account, or by dispatch for someone who called or sent the public form.
+create or replace function public.cc_submit_ride(p jsonb) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+  r text := cc_require('owner', 'dispatcher', 'client', 'store');
+  org uuid := cc_my_org(); oid uuid; oref text; st jsonb; n int := 0; need timestamptz; who text := btrim(coalesce(p->>'passenger_name', ''));
+begin
+  if r in ('owner', 'dispatcher') then org := nullif(p->>'org_id', '')::uuid; end if;
+  if r in ('client', 'store') and org is null then raise exception 'This login is not tied to a company yet.'; end if;
+  perform cc_ride_check(p);
+  if char_length(who) not between 2 and 80 then raise exception 'Add the rider''s name so the driver can find them.'; end if;
+  if char_length(regexp_replace(coalesce(p->>'passenger_phone', ''), '[^0-9]', '', 'g')) < 10 then raise exception 'Add a phone number the driver can call or text.'; end if;
+  need := case when p->>'direction' = 'to_ind' then (p->>'pickup_at')::timestamptz else (p->>'flight_at')::timestamptz end;
+  insert into cc_orders (kind, urgency, org_id, created_by, title, notes, blind, need_by, ride)
+  values ('ride', 'scheduled', org, auth.uid(),
+          case when p->>'direction' = 'to_ind' then 'Ride to IND' else 'Ride from IND' end, left(btrim(p->>'notes'), 1000),
+          coalesce((p->>'blind')::boolean, true), need,
+          jsonb_build_object('direction', p->>'direction', 'town', left(btrim(p->>'town'), 60), 'flight', left(btrim(p->>'flight'), 40),
+            'flight_at', nullif(p->>'flight_at', '')::timestamptz, 'pickup_at', nullif(p->>'pickup_at', '')::timestamptz,
+            'passengers', (p->>'passengers')::int, 'bags', coalesce((p->>'bags')::int, 0), 'passenger_name', left(who, 80),
+            'passenger_phone', left(btrim(p->>'passenger_phone'), 30), 'request_id', nullif(p->>'request_id', '')::bigint))
+  returning id, ref into oid, oref;
+  for st in select * from jsonb_array_elements(cc_ride_stops(p)) loop
+    n := n + 1;
+    insert into cc_stops (order_id, seq, kind, place_name, address, contact, instructions, lat, lng)
+    values (oid, n, st->>'kind', st->>'place_name', st->>'address', st->>'contact', left(st->>'instructions', 600),
+            (st->>'lat')::double precision, (st->>'lng')::double precision);
+  end loop;
+  if r in ('owner', 'dispatcher') and p->>'request_id' is not null then
+    update cc_ride_requests set status = 'booked' where id = (p->>'request_id')::bigint;
+  end if;
+  perform cc_log(oid, 'order_placed', jsonb_build_object('ride', p->>'direction', 'passengers', (p->>'passengers')::int));
+  perform cc_notify_dispatch(oid, 'New airport ride', oref || ' needs a quote.');
+  return jsonb_build_object('id', oid, 'ref', oref, 'kind', 'ride');
+end $$;
+
+-- Open to the public, so it is capped, keeps only what the person typed, and books nothing by itself.
+create or replace function public.cc_request_ride(p jsonb) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare nm text := btrim(coalesce(p->>'name', '')); ph text := btrim(coalesce(p->>'phone', ''));
+begin
+  if char_length(nm) not between 2 and 80 then raise exception 'Add your name.'; end if;
+  if char_length(regexp_replace(ph, '[^0-9]', '', 'g')) < 10 then raise exception 'Add a phone number we can call or text.'; end if;
+  perform cc_ride_check(p);
+  if (select count(*) from cc_ride_requests where created_at > now() - interval '1 day') >= 60 then
+    raise exception 'Too many requests today. Call (812) 671-1780 instead.';
+  end if;
+  if (select count(*) from cc_ride_requests where phone = ph and created_at > now() - interval '1 day') >= 3 then
+    return jsonb_build_object('ok', true);
+  end if;
+  insert into cc_ride_requests (name, phone, email, direction, town, address, flight, flight_at, pickup_at, passengers, bags, notes)
+  values (nm, left(ph, 30), nullif(lower(btrim(p->>'email')), ''), p->>'direction', left(btrim(p->>'town'), 60), left(btrim(p->>'address'), 200),
+          left(btrim(p->>'flight'), 40), nullif(p->>'flight_at', '')::timestamptz, nullif(p->>'pickup_at', '')::timestamptz,
+          (p->>'passengers')::int, coalesce((p->>'bags')::int, 0), left(btrim(p->>'notes'), 1000));
+  insert into cc_notifications (user_id, title, body)
+  select user_id, 'Airport ride request', 'Someone asked for a ride. Open Admin to quote it.' from cc_members where role in ('owner', 'dispatcher') and active;
+  return jsonb_build_object('ok', true);
+end $$;
+
+create or replace function public.cc_ride_requests_open() returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+begin
+  perform cc_require('owner', 'dispatcher');
+  return coalesce((select jsonb_agg(jsonb_build_object('id', id, 'name', name, 'phone', phone, 'email', email, 'direction', direction, 'town', town,
+      'address', address, 'flight', flight, 'flight_at', flight_at, 'pickup_at', pickup_at, 'passengers', passengers, 'bags', bags, 'notes', notes,
+      'at', created_at) order by id desc) from cc_ride_requests where status = 'new'), '[]'::jsonb);
+end $$;
+
+create or replace function public.cc_admin_resolve_ride(p_id bigint, p_status text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+begin
+  perform cc_require('owner', 'dispatcher');
+  if p_status not in ('booked', 'declined') then raise exception 'Unknown status.'; end if;
+  update cc_ride_requests set status = p_status where id = p_id;
+  return jsonb_build_object('ok', true);
+end $$;
+
 -- ── Who can call what ────────────────────────────────────────────────────
 do $$ declare f record; begin
   for f in select p.oid::regprocedure as sig from pg_proc p join pg_namespace n on n.oid = p.pronamespace
@@ -1068,9 +1201,11 @@ grant execute on function
   public.cc_add_attachment(uuid, text, text, text, uuid), public.cc_ping(double precision, double precision, double precision, double precision, double precision),
   public.cc_fleet(), public.cc_track(uuid), public.cc_alerts(), public.cc_alerts_read(), public.cc_admin_overview(),
   public.cc_admin_set_member(uuid, text, uuid, boolean), public.cc_admin_save_org(jsonb), public.cc_admin_resolve_request(bigint, text),
-  public.cc_nda_ok(uuid), public.cc_can_upload(text), public.cc_can_read_file(text)
+  public.cc_nda_ok(uuid), public.cc_can_upload(text), public.cc_can_read_file(text),
+  public.cc_submit_ride(jsonb), public.cc_admin_resolve_ride(bigint, text), public.cc_ride_requests_open()
 to authenticated;
 grant execute on function public.cc_request_access(text, text, text, text, text, text) to anon, authenticated;
+grant execute on function public.cc_request_ride(jsonb) to anon, authenticated;
 
 -- The profile and message policies call these as the signed-in person.
 grant execute on function public.cc_is_internal(uuid), public.cc_role(uuid), public.cc_is_dispatch(uuid), public.cc_my_org() to authenticated;

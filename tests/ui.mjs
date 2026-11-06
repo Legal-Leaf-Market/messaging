@@ -157,12 +157,74 @@ for (const [label, w, h] of [['desktop', 1280, 860], ['phone', 390, 800]]) {
   await p.getByRole('heading', { name: 'People' }).waitFor();
   await shot(p, `${label}-13-admin`); await noHScroll(p, label + ' admin');
 
+  // Airport ride: a public request lands on the board, dispatch books and prices it, a driver runs it.
+  await sw.selectOption({ label: 'Dispatch and owner' });
+  await p.getByRole('heading', { name: 'Airport ride requests' }).waitFor();
+  await shot(p, `${label}-15-ride-requests`); await noHScroll(p, label + ' ride requests');
+  await p.getByRole('button', { name: 'Book it' }).click();
+  await p.getByRole('heading', { name: 'Airport ride' }).waitFor();
+  check((await p.getByRole('textbox', { name: 'Rider\u2019s name' }).inputValue()) === 'Sample Traveler', label + ' booking is filled in from the request');
+  await shot(p, `${label}-16-ride-form`); await noHScroll(p, label + ' ride form');
+  await p.getByRole('button', { name: 'Book and price it' }).click();
+  await p.getByRole('heading', { name: 'Ride to the airport' }).waitFor();
+  check((await p.getByLabel('Ride', { exact: true }).inputValue()) === '125.00', label + ' Seymour ride suggests the far rate');
+  await p.getByRole('button', { name: 'Send quote' }).click();
+  await p.getByLabel('Who approved and how').fill('Traveler by phone');
+  await p.getByRole('button', { name: 'Record approval' }).click();
+  await p.getByRole('button', { name: 'Offer to everyone on duty' }).click();
+  await p.getByText('Offered to everyone on duty.').waitFor();
+  const rideRef = (await p.getByText(/^Job PL-/).textContent()).replace('Job ', '');
+  await sw.selectOption({ label: 'Driver' });
+  await p.getByRole('link', { name: new RegExp(rideRef) }).click();
+  await p.getByRole('button', { name: 'Claim this job' }).click();
+  await p.getByRole('link', { name: '(812) 555-0142' }).waitFor();
+  check(true, label + ' driver sees the rider and phone on a blind ride');
+  await p.getByRole('button', { name: 'I am here' }).click();
+  await p.getByRole('button', { name: 'Rider is in the vehicle' }).click();
+  await p.getByRole('button', { name: 'Mark picked up' }).click();
+  await p.getByRole('button', { name: 'I am here' }).click();
+  await p.getByRole('button', { name: 'Dropped off' }).click();
+  await p.getByRole('button', { name: 'Mark dropped off' }).click();
+  await p.locator('.traveler').getByText('Delivered').waitFor();
+  check(true, label + ' ride runs start to finish with no receiver name');
+  await shot(p, `${label}-17-ride-done`); await noHScroll(p, label + ' ride done');
+
+  // Customer books a ride from their account.
+  await sw.selectOption({ label: 'Customer' });
+  await p.getByRole('link', { name: 'Airport ride', exact: true }).click();
+  await p.getByRole('button', { name: /^From the airport/ }).click();
+  await p.getByLabel('Town').selectOption('Columbus');
+  await p.getByLabel('Drop-off address').fill('200 Example Ave, Columbus, IN');
+  await p.getByLabel('Flight lands at').fill('2026-12-01T15:30');
+  await p.getByRole('textbox', { name: 'Rider\u2019s name' }).fill('Visiting engineer');
+  await p.getByRole('textbox', { name: 'Rider\u2019s phone' }).fill('(812) 555-0199');
+  await p.getByLabel('Riders').fill('9');
+  await p.getByRole('button', { name: 'Send for a price' }).click();
+  await p.getByText('Up to 7 riders per vehicle. Call for a bigger group.').waitFor();
+  await p.getByLabel('Riders').fill('2');
+  await p.getByRole('button', { name: 'Send for a price' }).click();
+  await p.getByRole('heading', { name: 'Ride from the airport' }).waitFor();
+  check(await p.getByText(/Ground Transportation Center/).count() >= 1, label + ' airport pickup tells the driver where to meet');
+
   // Store sees a transfer ask with no customer name.
   await sw.selectOption({ label: 'Store' });
   await p.getByRole('heading', { name: 'My jobs' }).waitFor();
   await p.getByRole('link', { name: 'Stock requests' }).click();
   await p.getByRole('heading', { name: 'Stock requests' }).waitFor();
   await shot(p, `${label}-14-store`);
+
+  // The public ride form, from the sign-in screen.
+  await p.getByRole('button', { name: 'Sign out' }).click();
+  await p.getByRole('button', { name: 'See the public airport ride form' }).click();
+  await p.getByLabel('Pickup address').fill('12 Sample Ln, Franklin, IN');
+  await p.getByLabel('Town').selectOption('Franklin');
+  await p.getByLabel('Pick me up at').fill('2026-12-02T04:30');
+  await p.getByLabel('Your name').fill('Sample Neighbor');
+  await p.getByLabel('Phone', { exact: true }).fill('812-555-0123');
+  await shot(p, `${label}-18-public-ride`); await noHScroll(p, label + ' public ride');
+  await p.getByRole('button', { name: 'Ask for a price' }).click();
+  await p.getByRole('heading', { name: 'Request sent' }).waitFor();
+  check(true, label + ' public ride request goes through');
   await p.close();
 }
 await b.close(); srv.close();

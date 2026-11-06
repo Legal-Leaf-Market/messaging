@@ -15,6 +15,11 @@
   const NO_CARRY = 'Hazmat and gas cylinders, firearms and ammunition, cannabis or THC products, cash and valuables, live animals, or anything illegal to ship.';
   // Starting rate card for the price suggestion. Dispatch always sets the real quote.
   const RATES = { local: 4500, near: 8500, far: 14000, long: 22500, rushPct: 0.5, feePct: 0.15, feeMin: 1500 };
+  // Airport rides: rough road miles to IND by town, and a starting rate card. Dispatch sets the real quote.
+  const AIRPORT_TOWNS = { Greenwood: 22, Whiteland: 25, Franklin: 30, Shelbyville: 40, Edinburgh: 42, Taylorsville: 48, Bloomington: 50, Columbus: 55, Nashville: 55,
+    Hope: 65, Greensburg: 65, Seymour: 75, 'North Vernon': 75, Batesville: 80, Brownstown: 85, Scottsburg: 90, Madison: 95 };
+  const RIDE_RATES = { near: 6500, mid: 9500, far: 12500, long: 16500, extraRider: 1000, includedRiders: 3, lateNight: 2000 };
+  const MAX_RIDERS = 7; // the Indiana authority class of 8 or fewer, counting the driver
   /* ==================== */
 
   const DATA = window.CC_DATA;
@@ -161,7 +166,7 @@
   };
   const clientStatus = (s) => (s === 'quoted' ? 'Your quote is ready' : s === 'approved' ? 'Approved, finding a driver' : (STATUS[s] || [s])[0]);
   const URGENCY = { hotshot: ['Hot shot', 'Right now'], same_day: ['Same day', 'Today'], next_day: ['Next day', 'Tomorrow'], scheduled: ['Scheduled', 'Pick a time'] };
-  const KIND = { courier: 'Courier run', purchase: 'Purchasing run', process: 'Outside processing', transfer: 'Store transfer' };
+  const KIND = { courier: 'Courier run', purchase: 'Purchasing run', process: 'Outside processing', transfer: 'Store transfer', ride: 'Airport ride' };
   const STOPK = { pickup: 'Pick up', process: 'Process', drop: 'Deliver' };
   const ACTION = { buy: 'Buy', pickup: 'Pick up', process: 'Process' };
   const EVENT = {
@@ -177,6 +182,7 @@
     if (DEMO) return gateDemo();
     if (await backend.session()) return enter();
     if (qs.has('new')) return gateRequest(); // the pamphlet's QR code lands here
+    if (qs.has('ride')) return gateRide();
     gateLogin();
   }
   async function enter() {
@@ -229,8 +235,29 @@
         btn.disabled = false;
       } }, u, p, btn, err),
       h('button', { class: 'link', type: 'button', onclick: gateRequest }, 'New here? Request an account'),
+      h('button', { class: 'link', type: 'button', onclick: gateRide }, 'Need a ride to or from the Indianapolis airport?'),
       h('p', { class: 'small muted' }, 'Need it moving now? Call ', h('a', { href: tel(CONTACT_PHONE) }, CONTACT_PHONE), '.'),
     ]));
+  }
+  // Anyone can ask for an airport ride. Dispatch calls back with a price and books it.
+  function gateRide() {
+    const st = { direction: 'to_ind', passengers: 1, bags: 1 };
+    const f = rideFields(st, true);
+    const err = h('div', { class: 'err' });
+    root.replaceChildren(gateCard([
+      h('h2', null, 'Ride to or from the Indianapolis airport'),
+      h('p', { class: 'muted small' }, 'Door to door between south central Indiana and IND. Send this and we will call or text you with a price before anything is booked.'),
+      f.node, err,
+      h('button', { class: 'primary big', type: 'button', onclick: async () => {
+        err.textContent = '';
+        try {
+          await backend.rpc('cc_request_ride', { p: f.collect() });
+          root.replaceChildren(gateCard([h('h2', null, 'Request sent'), h('p', null, 'We will call or text you with a price. Nothing is booked until you say yes.'),
+            h('p', { class: 'small muted' }, 'Questions? Call ', h('a', { href: tel(CONTACT_PHONE) }, CONTACT_PHONE), '.'), h('button', { onclick: DEMO ? gateDemo : gateLogin }, 'Done')]));
+        } catch (e) { err.textContent = e.message; }
+      } }, 'Ask for a price'),
+      h('button', { class: 'link', type: 'button', onclick: DEMO ? gateDemo : gateLogin }, 'Back'),
+    ], true));
   }
   function gateRequest() {
     const v = {};
@@ -265,6 +292,7 @@
         pick(i.driver, 'Driver', 'Go on duty, claim jobs, log each stop'),
         pick(i.store, 'Store', 'Answer stock requests from other stores')),
       h('button', { class: 'link', type: 'button', onclick: gateRequest }, 'See the account request form'),
+      h('button', { class: 'link', type: 'button', onclick: gateRide }, 'See the public airport ride form'),
     ]));
   }
   function gatePending() {
@@ -307,8 +335,8 @@
   }
   function tabsFor() {
     if (me.role === 'driver') return [['#/driver', 'Jobs', 'driver'], ['#/alerts', 'Alerts', 'alerts']];
-    if (isDispatch()) return [['#/board', 'Board', 'board'], ['#/map', 'Map', 'map'], ['#/new', 'New run', 'new'], me.role === 'owner' ? ['#/admin', 'Admin', 'admin'] : null, ['#/alerts', 'Alerts', 'alerts']].filter(Boolean);
-    return [['#/new', 'New run', 'new'], ['#/jobs', 'My jobs', 'jobs'], me.role === 'store' ? ['#/requests', 'Stock requests', 'requests'] : null, ['#/alerts', 'Alerts', 'alerts']].filter(Boolean);
+    if (isDispatch()) return [['#/board', 'Board', 'board'], ['#/map', 'Map', 'map'], ['#/new', 'New run', 'new'], ['#/ride', 'Airport ride', 'ride'], me.role === 'owner' ? ['#/admin', 'Admin', 'admin'] : null, ['#/alerts', 'Alerts', 'alerts']].filter(Boolean);
+    return [['#/new', 'New run', 'new'], ['#/ride', 'Airport ride', 'ride'], ['#/jobs', 'My jobs', 'jobs'], me.role === 'store' ? ['#/requests', 'Stock requests', 'requests'] : null, ['#/alerts', 'Alerts', 'alerts']].filter(Boolean);
   }
   const topEl = h('div', { id: 'top' });
   function drawTop() {
@@ -333,7 +361,7 @@
     drawTop();
     if (!topEl.isConnected) root.replaceChildren(topEl, h('main', { id: 'main' }));
     const main = document.getElementById('main');
-    const views = { new: viewNew, jobs: viewJobs, job: viewJob, board: viewBoard, map: viewMapPage, admin: viewAdmin, requests: viewRequests, alerts: viewAlerts, driver: viewDriver };
+    const views = { new: viewNew, ride: viewRide, jobs: viewJobs, job: viewJob, board: viewBoard, map: viewMapPage, admin: viewAdmin, requests: viewRequests, alerts: viewAlerts, driver: viewDriver };
     const fn = views[r.name] || (() => h('div', { class: 'card' }, 'Page not found.'));
     let node;
     try { node = await fn(r.id); } catch (e) { node = h('div', { class: 'card' }, h('p', { class: 'err' }, e.message), h('a', { href: home() }, 'Back to your jobs')); }
@@ -495,8 +523,11 @@
       o.title ? h('div', null, o.title) : null,
       h('div', { class: 'small muted' }, [o.org_name, KIND[o.kind], o.stops_done + ' of ' + o.stops + ' stops', o.driver_name, o.total_cents != null ? money(o.total_cents) : null].filter(Boolean).join(', ')),
       o.store_waiting ? h('div', { class: 'small' }, 'Waiting on a store to answer') : null,
-      o.need_by ? h('div', { class: 'small' }, 'Need by ' + when(o.need_by)) : null);
+      o.ride ? h('div', { class: 'small' }, rideLine(o.ride)) : null,
+      o.need_by && !o.ride ? h('div', { class: 'small' }, 'Need by ' + when(o.need_by)) : null);
   }
+  const riders = (n) => n + (n === 1 ? ' rider' : ' riders');
+  const rideLine = (r) => [r.direction === 'to_ind' ? 'To IND' : 'From IND', r.town, riders(r.passengers), r.direction === 'to_ind' ? 'pickup ' + when(r.pickup_at) : 'lands ' + when(r.flight_at)].filter(Boolean).join(', ');
   async function viewJobs() {
     const rows = await backend.rpc('cc_list_orders');
     return h('div', { class: 'stack' },
@@ -506,8 +537,16 @@
   }
   async function viewBoard() {
     const rows = await backend.rpc('cc_list_orders');
+    const rideReqs = await backend.rpc('cc_ride_requests_open');
     const cols = [['Needs a quote', ['requested']], ['Waiting on customer', ['quoted']], ['Needs a driver', ['approved', 'dispatching']], ['Out now', ['assigned', 'in_progress']], ['To bill', ['delivered']]];
     return h('div', { class: 'stack' }, h('h1', null, 'Board'), pushCard(),
+      rideReqs.length ? h('section', { class: 'card' }, h('h2', null, 'Airport ride requests'), h('p', { class: 'small muted' }, 'From the public form. Call or text with a price, then book it.'),
+        rideReqs.map((r) => h('div', { class: 'msg' },
+          h('strong', null, r.name + ', ' + rideLine(r)),
+          h('div', { class: 'small' }, [r.address, r.flight ? 'Flight ' + r.flight : null, r.bags + (r.bags === 1 ? ' bag' : ' bags'), r.notes].filter(Boolean).join(', ')),
+          h('div', { class: 'row small' }, h('a', { href: tel(r.phone) }, r.phone), r.email ? h('a', { href: 'mailto:' + r.email }, r.email) : null),
+          h('div', { class: 'row' }, h('button', { type: 'button', class: 'primary', onclick: () => { rideDraft = { direction: r.direction, town: r.town, address: r.address, flight: r.flight, flight_at: r.flight_at, pickup_at: r.pickup_at, passengers: r.passengers, bags: r.bags, notes: r.notes, passenger_name: r.name, passenger_phone: r.phone, request_id: r.id }; location.hash = '#/ride'; } }, 'Book it'),
+            act('Decline', async () => { await backend.rpc('cc_admin_resolve_ride', { p_id: r.id, p_status: 'declined' }); reload(); }))))) : null,
       h('div', { class: 'board', style: 'grid-template-columns:repeat(auto-fit,minmax(180px,1fr))' }, cols.map(([label, sts]) => {
         const list = rows.filter((o) => sts.includes(o.status)).sort((a, b) => (b.urgency === 'hotshot') - (a.urgency === 'hotshot'));
         return h('section', null, h('h2', null, label, h('span', { class: 'muted' }, list.length)), list.length ? list.map(jobCard) : h('p', { class: 'empty' }, 'Nothing here.'));
@@ -559,7 +598,7 @@
 
     if (side === 'driver') add(left, driverPanel(o));
     add(left, h('section', { class: 'card', 'aria-label': 'Stops' }, h('h2', null, 'Route'), h('div', { class: 'route' }, o.stops.map((s) => stopRow(o, s)))));
-    add(left, itemsCard(o));
+    if (o.ride) add(left, rideCard(o)); else add(left, itemsCard(o));
     const mapCard = trackCard(o);
     if (mapCard) add(left, mapCard);
 
@@ -567,7 +606,7 @@
     if (side === 'client') add(acts, clientActions(o));
     if (side === 'dispatch') add(acts, dispatchPanel(o));
     if (acts.childNodes.length) add(right, acts);
-    add(right, filesCard(o));
+    if (!o.ride) add(right, filesCard(o));
     add(right, messagesCard(o));
     add(right, timelineCard(o));
     page.afterMount = () => { page.querySelectorAll('[data-map]').forEach((el) => el.__draw && el.__draw()); if (side === 'driver' && o.status === 'in_progress') keepAwake(); };
@@ -594,15 +633,16 @@
         h('tbody', null, o.items.map((i) => h('tr', null, h('td', null, ACTION[i.action]), h('td', null, i.description, i.part_no ? h('div', { class: 'small muted' }, i.part_no) : null),
           h('td', null, i.qty), h('td', null, i.store_name || i.supplier_name || '', i.store_status !== 'none' ? h('div', { class: 'small muted' }, { asked: 'Waiting on store', confirmed: 'Store confirmed', declined: 'Store declined' }[i.store_status] + (i.store_price_cents != null ? ', ' + money(i.store_price_cents) : '') + (i.store_note ? ', ' + i.store_note : '')) : null)))))));
   }
-  function quoteLines(q) {
+  function quoteLines(q, o) {
     const row = (l, c) => (c ? h('div', null, h('span', null, l), h('span', null, money(c))) : null);
-    return h('div', { class: 'quote-lines' }, row('Parts', q.parts_cents), row('Purchasing fee', q.purchase_fee_cents), row('Delivery', q.courier_cents), row('Rush', q.rush_cents), h('div', { class: 'total' }, h('span', null, 'Total'), h('span', null, money(q.total_cents))));
+    const ride = o && o.kind === 'ride';
+    return h('div', { class: 'quote-lines' }, row('Parts', q.parts_cents), row('Purchasing fee', q.purchase_fee_cents), row(ride ? 'Ride' : 'Delivery', q.courier_cents), row(ride ? 'Extra riders or late night' : 'Rush', q.rush_cents), h('div', { class: 'total' }, h('span', null, 'Total'), h('span', null, money(q.total_cents))));
   }
   function clientActions(o) {
     const out = [];
     if (o.quote) {
       const note = h('input', { placeholder: 'Optional note', 'aria-label': 'Note' });
-      out.push(h('section', { class: 'card' }, h('h2', null, o.status === 'quoted' ? 'Your quote' : 'Quote'), quoteLines(o.quote), o.quote.note ? h('p', { class: 'small' }, o.quote.note) : null,
+      out.push(h('section', { class: 'card' }, h('h2', null, o.status === 'quoted' ? 'Your quote' : 'Quote'), quoteLines(o.quote, o), o.quote.note ? h('p', { class: 'small' }, o.quote.note) : null,
         o.status === 'quoted' ? [h('p', { class: 'small muted' }, 'Good until ' + when(o.quote.valid_until) + '.'), note, h('div', { class: 'row' },
           act('Approve and send a driver', async () => { await backend.rpc('cc_respond_quote', { p_order: o.id, p_accept: true, p_note: note.value }); toast('Approved. Dispatch is finding a driver.'); reload(); }, 'primary'),
           act('Decline', async () => { await backend.rpc('cc_respond_quote', { p_order: o.id, p_accept: false, p_note: note.value }); reload(); }))] : null));
@@ -619,7 +659,16 @@
         h('button', { type: 'button', onclick: close }, 'Keep it')));
     }) }, 'Cancel this job'));
   }
+  function suggestRide(r) {
+    const miles = AIRPORT_TOWNS[r.town] || 55;
+    const ride = miles <= 35 ? RIDE_RATES.near : miles <= 60 ? RIDE_RATES.mid : miles <= 80 ? RIDE_RATES.far : RIDE_RATES.long;
+    const at = new Date(r.direction === 'to_ind' ? r.pickup_at : r.flight_at);
+    const late = !isNaN(at) && (at.getHours() >= 22 || at.getHours() < 5);
+    const extra = Math.max(0, (r.passengers || 1) - RIDE_RATES.includedRiders) * RIDE_RATES.extraRider + (late ? RIDE_RATES.lateNight : 0);
+    return { parts: 0, fee: 0, courier: ride, rush: extra, miles, label: 'about ' + miles + ' miles from IND' + (late ? ', late night' : '') };
+  }
   function suggestQuote(o) {
+    if (o.ride) return suggestRide(o.ride);
     const text = o.stops.map((s) => (s.address || '') + ' ' + s.place_name).join(' ');
     let miles = 5;
     for (const c of Object.keys(DATA.areaMiles)) if (text.toLowerCase().includes(c.toLowerCase())) miles = Math.max(miles, DATA.areaMiles[c]);
@@ -636,14 +685,15 @@
       const s = suggestQuote(o);
       const cur = o.quote && o.quote.status === 'sent' ? o.quote : null;
       const inp = (label, v) => { const el = h('input', { inputmode: 'decimal', value: (v / 100).toFixed(2), 'aria-label': label }); return [el, h('label', { class: 'f' }, label, el)]; };
-      const [p, pl] = inp('Parts', cur ? cur.parts_cents : s.parts), [f, fl] = inp('Purchasing fee', cur ? cur.purchase_fee_cents : s.fee), [c, cl] = inp('Delivery', cur ? cur.courier_cents : s.courier), [r, rl] = inp('Rush', cur ? cur.rush_cents : s.rush);
+      const rd = !!o.ride;
+      const [p, pl] = inp('Parts', cur ? cur.parts_cents : s.parts), [f, fl] = inp('Purchasing fee', cur ? cur.purchase_fee_cents : s.fee), [c, cl] = inp(rd ? 'Ride' : 'Delivery', cur ? cur.courier_cents : s.courier), [r, rl] = inp(rd ? 'Extra riders or late night' : 'Rush', cur ? cur.rush_cents : s.rush);
       const note = h('input', { placeholder: 'Shown to the customer', value: cur && cur.note ? cur.note : '', 'aria-label': 'Note' }), hours = h('input', { type: 'number', value: '24', min: '1', max: '720', 'aria-label': 'Hours the quote lasts' });
       out.push(h('section', { class: 'card' }, h('h2', null, cur ? 'Change the quote' : 'Send a quote'),
-        h('p', { class: 'small muted' }, 'Filled from the rate card for about ' + s.miles + ' miles out. Change anything.'),
-        h('div', { class: 'grid2' }, pl, fl, cl, rl), h('label', { class: 'f' }, 'Note', note), h('label', { class: 'f' }, 'Good for how many hours', hours),
+        h('p', { class: 'small muted' }, 'Filled from the rate card, ' + (s.label || 'about ' + s.miles + ' miles out') + '. Change anything.'),
+        h('div', { class: 'grid2' }, rd ? null : pl, rd ? null : fl, cl, rl), h('label', { class: 'f' }, 'Note', note), h('label', { class: 'f' }, 'Good for how many hours', hours),
         act('Send quote', async () => { await backend.rpc('cc_send_quote', { p_order: o.id, p_parts: cents(p.value), p_fee: cents(f.value), p_courier: cents(c.value), p_rush: cents(r.value), p_note: note.value, p_valid_hours: Number(hours.value) }); toast('Quote sent.'); reload(); }, 'primary')));
     }
-    if (o.quote && o.status !== 'requested') out.push(h('section', { class: 'card' }, h('h2', null, 'Quote'), quoteLines(o.quote), h('p', { class: 'small muted' }, 'Status: ' + o.quote.status)));
+    if (o.quote && o.status !== 'requested') out.push(h('section', { class: 'card' }, h('h2', null, 'Quote'), quoteLines(o.quote, o), h('p', { class: 'small muted' }, 'Status: ' + o.quote.status)));
     if (o.status === 'quoted') {
       const who = h('input', { placeholder: 'Dana by phone', 'aria-label': 'Who approved and how' });
       out.push(h('section', { class: 'card' }, h('h3', null, 'Approved by phone?'), h('label', { class: 'f' }, 'Who approved and how', who), act('Record approval', async () => { await backend.rpc('cc_respond_quote', { p_order: o.id, p_accept: true, p_note: who.value }); reload(); })));
@@ -678,7 +728,7 @@
         h('a', { href: mapsUrl(next), target: '_blank', rel: 'noopener noreferrer' }, h('button', { type: 'button', class: 'big' }, 'Open in Google Maps')),
         next.status === 'pending'
           ? act('I am here', async () => { await backend.rpc('cc_stop_update', { p_stop: next.id, p_action: 'arrive', p_received_by: null, p_note: null, p_lat: lastPos && lastPos.lat, p_lng: lastPos && lastPos.lng }); keepAwake(); reload(); }, 'primary big')
-          : h('button', { type: 'button', class: 'primary big', onclick: () => finishStop(o, next) }, next.kind === 'drop' ? 'Deliver and get a name' : next.kind === 'process' ? 'Dropped at processing' : 'Picked up')));
+          : h('button', { type: 'button', class: 'primary big', onclick: () => finishStop(o, next) }, o.kind === 'ride' ? (next.kind === 'drop' ? 'Dropped off' : 'Rider is in the vehicle') : next.kind === 'drop' ? 'Deliver and get a name' : next.kind === 'process' ? 'Dropped at processing' : 'Picked up')));
       if (o.status === 'assigned') out.push(h('button', { type: 'button', class: 'link', onclick: () => modal('Give this job back?', (close) => {
         const why = h('input', { 'aria-label': 'Reason', placeholder: 'Flat tire, wrong vehicle' });
         return h('div', { class: 'stack' }, h('label', { class: 'f' }, 'Reason', why), h('div', { class: 'row' }, act('Give it back', async () => { await backend.rpc('cc_release_job', { p_order: o.id, p_reason: why.value }); close(); location.hash = '#/driver'; }), h('button', { type: 'button', onclick: close }, 'Keep it')));
@@ -687,6 +737,17 @@
     return out;
   }
   function finishStop(o, s) {
+    if (o.kind === 'ride') {
+      modal(s.kind === 'drop' ? 'Dropped off' : 'Rider picked up', (close) => {
+        const note = h('input', { placeholder: s.kind === 'drop' ? 'Departures door 4' : 'Flight was 20 minutes late', 'aria-label': 'Note' });
+        return h('div', { class: 'stack' }, h('label', { class: 'f' }, 'Note (optional)', note),
+          act(s.kind === 'drop' ? 'Mark dropped off' : 'Mark picked up', async () => {
+            await backend.rpc('cc_stop_update', { p_stop: s.id, p_action: 'done', p_received_by: null, p_note: note.value, p_lat: lastPos && lastPos.lat, p_lng: lastPos && lastPos.lng });
+            close(); toast('Logged.'); reload();
+          }, 'primary big'), h('button', { type: 'button', onclick: close }, 'Back'));
+      });
+      return;
+    }
     modal(s.kind === 'drop' ? 'Deliver' : s.kind === 'process' ? 'Dropped at processing' : 'Picked up', (close) => {
       const who = h('input', { autocomplete: 'off', 'aria-label': 'Name of the person who took it' }), note = h('input', { placeholder: 'Boxes: 2, gate was closed', 'aria-label': 'Note' });
       const photo = h('input', { type: 'file', accept: 'image/*', capture: 'environment', 'aria-label': 'Photo' });
@@ -729,6 +790,61 @@
     if (!o.events.length) return null;
     return h('section', { class: 'card' }, h('h2', null, 'Custody record'), h('div', { class: 'timeline' }, o.events.map((e) => h('div', null,
       h('span', null, (EVENT[e.type] || e.type) + (e.detail && e.detail.received_by ? ', ' + e.detail.received_by : '') + (e.detail && e.detail.lat ? ', location logged' : '')), h('span', { class: 'muted', style: 'flex:none' }, when(e.at))))));
+  }
+
+  /* ---------- airport rides ---------- */
+  function rideCard(o) {
+    const r = o.ride;
+    return h('section', { class: 'card' }, h('h2', null, r.direction === 'to_ind' ? 'Ride to the airport' : 'Ride from the airport'),
+      h('div', { class: 'quote-lines' },
+        h('div', null, h('span', null, 'Rider'), h('span', null, r.passenger_name)),
+        h('div', null, h('span', null, 'Phone'), h('a', { href: tel(r.passenger_phone) }, r.passenger_phone)),
+        r.direction === 'to_ind' ? h('div', null, h('span', null, 'Pickup'), h('span', null, when(r.pickup_at))) : h('div', null, h('span', null, 'Flight lands'), h('span', null, when(r.flight_at))),
+        r.flight ? h('div', null, h('span', null, 'Flight'), h('span', null, r.flight)) : null,
+        h('div', null, h('span', null, 'Riders and bags'), h('span', null, riders(r.passengers) + ', ' + r.bags + (r.bags === 1 ? ' bag' : ' bags')))),
+      o.side === 'driver' && r.direction === 'from_ind' ? h('p', { class: 'small' }, 'Check the flight status before you leave. Text the rider when you are parked.') : null);
+  }
+  let rideDraft = null;
+  function rideFields(st, isPublic) {
+    const towns = Object.keys(AIRPORT_TOWNS).sort();
+    const local = (t) => { if (!t) return ''; const d = new Date(t); if (isNaN(d)) return ''; const z = new Date(d.getTime() - d.getTimezoneOffset() * 60000); return z.toISOString().slice(0, 16); };
+    const v = {};
+    const box = h('div', { class: 'stack' });
+    function draw() {
+      const to = st.direction === 'to_ind';
+      const inp = (k, label, attrs) => h('label', { class: 'f' }, label, (v[k] = h('input', Object.assign({ value: st[k] == null ? '' : st[k], oninput: (e) => { st[k] = e.target.value; } }, attrs || {}))));
+      const when_ = (k, label) => h('label', { class: 'f' }, label, (v[k] = h('input', { type: 'datetime-local', value: local(st[k]), oninput: (e) => { st[k] = e.target.value ? new Date(e.target.value).toISOString() : ''; } })));
+      box.replaceChildren(...[
+        h('div', { class: 'speed', role: 'group', 'aria-label': 'Direction' }, [['to_ind', 'To the airport', 'From home or work to IND'], ['from_ind', 'From the airport', 'IND back home or to work']].map(([k, a, b]) =>
+          h('button', { type: 'button', class: st.direction === k ? 'on' : '', 'aria-pressed': String(st.direction === k), onclick: () => { st.direction = k; draw(); } }, a, h('small', null, b)))),
+        h('label', { class: 'f' }, 'Town', h('select', { onchange: (e) => { st.town = e.target.value; } }, h('option', { value: '' }, 'Pick a town'), towns.map((t) => h('option', { value: t, selected: st.town === t }, t)), h('option', { value: 'Other', selected: st.town === 'Other' }, 'Somewhere else'))),
+        inp('address', to ? 'Pickup address' : 'Drop-off address', { autocomplete: 'street-address' }),
+        isPublic ? null : inp('place_name', 'Name for this place (optional)', { placeholder: 'Home, hotel, plant gate 3' }),
+        to ? when_('pickup_at', 'Pick me up at') : when_('flight_at', 'Flight lands at'),
+        inp('flight', 'Airline and flight number' + (to ? ' (optional)' : ''), { placeholder: 'Delta 1234' }),
+        h('div', { class: 'grid2' }, inp('passengers', 'Riders', { type: 'number', min: '1', max: String(MAX_RIDERS), inputmode: 'numeric' }), inp('bags', 'Bags', { type: 'number', min: '0', max: '20', inputmode: 'numeric' })),
+        isPublic ? [inp('name', 'Your name', { autocomplete: 'name' }), h('div', { class: 'grid2' }, inp('phone', 'Phone', { type: 'tel', autocomplete: 'tel' }), inp('email', 'Email (optional)', { type: 'email', autocomplete: 'email' }))]
+          : h('div', { class: 'grid2' }, inp('passenger_name', 'Rider\u2019s name', { autocomplete: 'off' }), inp('passenger_phone', 'Rider\u2019s phone', { type: 'tel' })),
+        h('label', { class: 'f' }, 'Anything the driver should know', (v.notes = h('textarea', { value: st.notes || '', oninput: (e) => { st.notes = e.target.value; } }))),
+        isPublic ? null : h('label', { class: 'c' }, h('input', { type: 'checkbox', checked: st.blind !== false, onchange: (e) => { st.blind = e.target.checked; } }), h('span', null, h('strong', null, 'Blind booking. '), 'The driver gets the rider\u2019s name and phone, not your company\u2019s name or the price.')),
+        h('p', { class: 'small muted' }, 'Up to ' + MAX_RIDERS + ' riders per vehicle. We confirm the pickup time with your price.')].flat().filter(Boolean));
+    }
+    draw();
+    return { node: box, collect: () => Object.assign({}, st, { passengers: Number(st.passengers || 0), bags: Number(st.bags || 0) }) };
+  }
+  async function viewRide() {
+    const st = rideDraft || { direction: 'to_ind', passengers: 1, bags: 1, blind: true };
+    rideDraft = null;
+    const f = rideFields(st, false);
+    const err = h('div', { class: 'err' });
+    return h('div', { class: 'stack', style: 'max-width:640px' },
+      h('h1', null, 'Airport ride'),
+      h('p', { class: 'muted' }, 'Door to door between south central Indiana and Indianapolis International Airport.' + (st.request_id ? ' Filled in from a public request.' : '')),
+      h('section', { class: 'card' }, f.node, err,
+        h('button', { type: 'button', class: 'primary big', onclick: async () => {
+          err.textContent = '';
+          try { const o = await backend.rpc('cc_submit_ride', { p: f.collect() }); toast('Sent. ' + o.ref + ' is waiting for a price.'); location.hash = '#/job/' + o.id; } catch (e) { err.textContent = e.message; }
+        } }, isDispatch() ? 'Book and price it' : 'Send for a price')));
   }
 
   /* ---------- GPS and maps ---------- */

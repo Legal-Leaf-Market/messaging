@@ -364,3 +364,50 @@ test('files: only the right people can upload or read', () => {
   call(driver2, 'cc_add_attachment', U(id), `${id}/proof.jpg`, 'proof.jpg', 'proof', U(null));
   assert.equal(call(driver2, 'cc_get_order', U(id)).attachments.length, 1);
 });
+
+test('airport rides: public request, dispatch books it, driver runs it, no receiver name needed', () => {
+  const pub = (p) => as(null, `select public.cc_request_ride(${q(JSON.stringify(p))}::jsonb)`, 'anon');
+  const req = { name: 'Pat Rider', phone: '(812) 555-0100', direction: 'to_ind', town: 'Columbus', address: '500 Sample St, Columbus, IN', pickup_at: new Date(Date.now() + 864e5).toISOString(), passengers: 2, bags: 3, flight: 'Sample Air 123' };
+  pub(req);
+  assert.throws(() => pub({ ...req, passengers: 9 }), /Up to 7 riders/);
+  assert.throws(() => pub({ ...req, phone: '555' }), /phone number/);
+  assert.throws(() => pub({ ...req, pickup_at: '' }), /pick you up/);
+  assert.throws(() => pub({ ...req, direction: 'from_ind', flight_at: '' }), /flight lands/);
+  assert.throws(() => as(null, `select public.cc_ride_requests_open()`, 'anon'), /permission denied/);
+  fails(clientA, 'cc_ride_requests_open', [], /cannot do that/);
+  const open = call(jake, 'cc_ride_requests_open');
+  assert.equal(open.length, 1);
+  assert.equal(open[0].name, 'Pat Rider');
+
+  // Dispatch books it for someone with no account: no company on the order.
+  const ride = call(jake, 'cc_submit_ride', J({ ...req, passenger_name: 'Pat Rider', passenger_phone: req.phone, request_id: open[0].id }));
+  assert.equal(ride.kind, 'ride');
+  assert.equal(call(jake, 'cc_ride_requests_open').length, 0, 'booking closes the request');
+  const o = call(jake, 'cc_get_order', U(ride.id));
+  assert.equal(o.ride.passengers, 2);
+  assert.equal(o.stops.length, 2);
+  assert.equal(o.stops[1].place_name, 'Indianapolis International Airport (IND)');
+  assert.equal(o.status, 'requested');
+
+  // A customer books one from their account. From the airport, so the pickup is at IND.
+  const mine = call(clientA, 'cc_submit_ride', J({ direction: 'from_ind', town: 'Seymour', address: '1 Sample Rd, Seymour, IN', flight: 'Sample 9', flight_at: new Date(Date.now() + 2 * 864e5).toISOString(), passengers: 1, bags: 1, passenger_name: 'Ann Visitor', passenger_phone: '8125550101' }));
+  fails(clientA, 'cc_submit_ride', [J({ direction: 'to_ind', address: '1 Sample Rd', pickup_at: new Date().toISOString(), passengers: 1, passenger_name: 'A', passenger_phone: '8125550101' })], /rider's name/);
+  fails(clientB, 'cc_get_order', [U(mine.id)], /not found/);
+  const mv = call(clientA, 'cc_get_order', U(mine.id));
+  assert.match(mv.stops[0].instructions, /Ground Transportation Center/);
+  assert.ok(call(clientA, 'cc_list_orders').some((x) => x.kind === 'ride' && x.ride.passenger_name === 'Ann Visitor'));
+
+  // Quote by phone, dispatch, run. The driver sees the rider's name and phone even on a blind job.
+  call(jake, 'cc_send_quote', U(ride.id), 0, 0, 9500, 0, 'Columbus to IND', 24);
+  call(jake, 'cc_respond_quote', U(ride.id), true, 'Pat by phone');
+  call(jake, 'cc_dispatch', U(ride.id), U(terry));
+  const dv = call(terry, 'cc_get_order', U(ride.id));
+  assert.equal(dv.ride.passenger_phone, '(812) 555-0100');
+  assert.equal(dv.blind, true);
+  call(terry, 'cc_stop_update', U(dv.stops[0].id), 'arrive', null, null, null, null);
+  call(terry, 'cc_stop_update', U(dv.stops[0].id), 'done', null, null, null, null);
+  call(terry, 'cc_stop_update', U(dv.stops[1].id), 'arrive', null, null, null, null);
+  assert.equal(call(terry, 'cc_stop_update', U(dv.stops[1].id), 'done', '', 'Dropped at departures', null, null).status, 'delivered');
+  // Plain courier jobs still need the receiver's name.
+  assert.ok(raw("select prosrc from pg_proc where proname = 'cc_stop_update'").includes("o.kind <> 'ride'"));
+});

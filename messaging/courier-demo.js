@@ -13,7 +13,7 @@
   const NDA = (root.CC_DATA && root.CC_DATA.nda) || { version: 'demo', body: 'Demo NDA' };
 
   function makeState() {
-    return { users: {}, orgs: {}, orders: {}, alerts: [], requests: [], pos: {}, nda: {}, files: {}, me: null, alertId: 1, msgId: 1, evId: 1, quoteId: 1, fileId: 1, listeners: [] };
+    return { users: {}, orgs: {}, orders: {}, alerts: [], requests: [], rides: [], pos: {}, nda: {}, files: {}, me: null, alertId: 1, msgId: 1, evId: 1, quoteId: 1, fileId: 1, listeners: [] };
   }
   let S = makeState();
 
@@ -42,6 +42,24 @@
   const openQuote = (o) => o.quotes.filter((q) => q.status === 'sent').slice(-1)[0];
   const activeQuote = (o) => o.quotes.filter((q) => ['sent', 'accepted'].includes(q.status)).slice(-1)[0];
   const stopsDone = (o) => o.stops.filter((s) => s.status === 'done').length;
+
+  const IND = { place_name: 'Indianapolis International Airport (IND)', address: '7800 Col. H. Weir Cook Memorial Dr, Indianapolis, IN 46241', lat: 39.7173, lng: -86.2944 };
+  function rideCheck(p) {
+    if (!['to_ind', 'from_ind'].includes(p.direction)) fail('Pick to the airport or from the airport.');
+    const a = clean(p.address); if (a.length < 5 || a.length > 200) fail('Add the address for the other end of the ride.');
+    const n = Number(p.passengers || 0); if (!(n >= 1 && n <= 7)) fail('Up to 7 riders per vehicle. Call for a bigger group.');
+    const b = Number(p.bags || 0); if (!(b >= 0 && b <= 20)) fail('Bags has to be a number from 0 to 20.');
+    if (p.direction === 'to_ind' && !p.pickup_at) fail('Add when we should pick you up.');
+    if (p.direction === 'from_ind' && !p.flight_at) fail('Add when the flight lands.');
+  }
+  function rideStops(p) {
+    const here = { place_name: clean(p.place_name) || (p.direction === 'to_ind' ? 'Pickup' : 'Drop-off'), address: clean(p.address) };
+    const fl = clean(p.flight);
+    if (p.direction === 'to_ind') return [Object.assign({ kind: 'pickup', contact: clean(p.passenger_name), instructions: clean(p.notes) || null }, here),
+      Object.assign({ kind: 'drop', instructions: 'Departures curb, upper level. ' + (fl ? 'Airline: ' + fl : '') }, IND)];
+    return [Object.assign({ kind: 'pickup', contact: clean(p.passenger_name), instructions: 'Meet at the Ground Transportation Center, first floor of the terminal garage. ' + (fl ? 'Flight: ' + fl : '') }, IND),
+      Object.assign({ kind: 'drop', instructions: clean(p.notes) || null }, here)];
+  }
 
   const fn = {
     cc_me() {
@@ -104,7 +122,7 @@
         }
       });
       const o = { id: uid('order'), ref: 'PL-' + (++seq), kind, status: 'requested', urgency: urg, org_id: org, created_by: S.me, driver_id: null,
-        title: clean(p.title).slice(0, 120) || null, notes: clean(p.notes).slice(0, 2000) || null, blind: p.blind !== false, need_by: p.need_by || null, invoice_ref: null,
+        title: clean(p.title).slice(0, 120) || null, notes: clean(p.notes).slice(0, 2000) || null, blind: p.blind !== false, need_by: p.need_by || null, invoice_ref: null, ride: null,
         created_at: iso(), updated_at: iso(), events: [], messages: [], quotes: [], attachments: [],
         stops: stops.map((s, i) => ({ id: uid('stop'), seq: i + 1, kind: s.kind, place_name: clean(s.place_name), address: clean(s.address) || null, supplier_slug: s.supplier_slug || null,
           contact: clean(s.contact) || null, instructions: clean(s.instructions) || null, lat: s.lat === undefined ? null : s.lat, lng: s.lng === undefined ? null : s.lng,
@@ -218,7 +236,7 @@
         log(o, 'arrived', Object.assign({ stop: s.seq, kind: s.kind }, here));
       } else if (p_action === 'done') {
         if (s.status !== 'arrived') fail('Mark that you arrived first.');
-        if (s.kind === 'drop' && who.length < 2) fail('Get the name of the person who received it.');
+        if (s.kind === 'drop' && o.kind !== 'ride' && who.length < 2) fail('Get the name of the person who received it.');
         s.status = 'done'; s.done_at = iso(); s.received_by = who || null; s.note = clean(p_note) || null;
         log(o, s.kind === 'drop' ? 'delivered_stop' : s.kind === 'process' ? 'processed' : 'picked_up', Object.assign({ stop: s.seq, received_by: who || null }, here));
         if (!o.stops.some((x) => ['pending', 'arrived'].includes(x.status))) {
@@ -280,15 +298,15 @@
       const total = (o) => { const q = activeQuote(o); return q ? q.total_cents : null; };
       if (['owner', 'dispatcher'].includes(r)) {
         return clone(all.map((o) => ({ id: o.id, ref: o.ref, kind: o.kind, status: o.status, urgency: o.urgency, title: o.title, need_by: o.need_by, created_at: o.created_at,
-          org_name: o.org_id && S.orgs[o.org_id] ? S.orgs[o.org_id].name : null, driver_name: o.driver_id ? user(o.driver_id).display_name : null, driver_id: o.driver_id,
+          org_name: o.org_id && S.orgs[o.org_id] ? S.orgs[o.org_id].name : null, driver_name: o.driver_id ? user(o.driver_id).display_name : null, driver_id: o.driver_id, ride: o.ride,
           total_cents: total(o), stops: o.stops.length, stops_done: stopsDone(o), store_waiting: o.items.filter((i) => i.store_status === 'asked').length })));
       }
       if (r === 'driver') {
         const duty = me().on_duty;
         return clone(all.filter((o) => o.driver_id === S.me || (o.status === 'dispatching' && duty)).map((o) => ({ id: o.id, ref: o.ref, kind: o.kind, status: o.status, urgency: o.urgency,
-          title: o.blind ? null : o.title, need_by: o.need_by, created_at: o.created_at, driver_id: o.driver_id, mine: o.driver_id === S.me, stops: o.stops.length, stops_done: stopsDone(o) })));
+          title: o.blind ? null : o.title, need_by: o.need_by, created_at: o.created_at, driver_id: o.driver_id, mine: o.driver_id === S.me, ride: o.ride, stops: o.stops.length, stops_done: stopsDone(o) })));
       }
-      return clone(all.filter((o) => o.org_id === myOrg()).map((o) => ({ id: o.id, ref: o.ref, kind: o.kind, status: o.status, urgency: o.urgency, title: o.title, need_by: o.need_by, created_at: o.created_at,
+      return clone(all.filter((o) => o.org_id === myOrg()).map((o) => ({ id: o.id, ref: o.ref, kind: o.kind, status: o.status, urgency: o.urgency, title: o.title, need_by: o.need_by, created_at: o.created_at, ride: o.ride,
         total_cents: total(o), stops: o.stops.length, stops_done: stopsDone(o) })));
     },
     cc_get_order({ p_order }) {
@@ -305,7 +323,7 @@
       }
       const isDriver = side === 'driver', show = !isDriver || !o.blind, disp = side === 'dispatch';
       const res = { id: o.id, ref: o.ref, kind: o.kind, status: o.status, urgency: o.urgency, blind: o.blind, title: show ? o.title : null, notes: show ? o.notes : null,
-        need_by: o.need_by, created_at: o.created_at, updated_at: o.updated_at, invoice_ref: isDriver ? null : o.invoice_ref, side,
+        need_by: o.need_by, created_at: o.created_at, updated_at: o.updated_at, invoice_ref: isDriver ? null : o.invoice_ref, side, ride: o.ride,
         stops: o.stops.map((s) => ({ id: s.id, seq: s.seq, kind: s.kind, place_name: s.place_name, address: s.address, supplier_slug: s.supplier_slug,
           contact: side === 'client' || disp || o.driver_id === S.me ? s.contact : null, instructions: s.instructions, lat: s.lat, lng: s.lng, status: s.status, arrived_at: s.arrived_at, done_at: s.done_at, received_by: s.received_by, note: s.note })),
         items: show ? o.items.map((i) => ({ id: i.id, action: i.action, supplier_name: i.supplier_name, supplier_slug: i.supplier_slug, description: i.description, part_no: i.part_no, qty: i.qty, store_status: i.store_status,
@@ -413,6 +431,48 @@
       if (r) r.resolved = p_status;
       return { ok: true };
     },
+    cc_submit_ride({ p }) {
+      const r = req('owner', 'dispatcher', 'client', 'store');
+      let org = myOrg();
+      if (['owner', 'dispatcher'].includes(r)) org = p.org_id || null;
+      if (['client', 'store'].includes(r) && !org) fail('This login is not tied to a company yet.');
+      rideCheck(p);
+      const who = clean(p.passenger_name);
+      if (who.length < 2 || who.length > 80) fail("Add the rider's name so the driver can find them.");
+      if (String(p.passenger_phone || '').replace(/[^0-9]/g, '').length < 10) fail('Add a phone number the driver can call or text.');
+      const to = p.direction === 'to_ind';
+      const ride = { direction: p.direction, town: clean(p.town) || null, flight: clean(p.flight) || null, flight_at: p.flight_at || null, pickup_at: p.pickup_at || null,
+        passengers: Number(p.passengers), bags: Number(p.bags || 0), passenger_name: who, passenger_phone: clean(p.passenger_phone), request_id: p.request_id || null };
+      const o = { id: uid('order'), ref: 'PL-' + (++seq), kind: 'ride', status: 'requested', urgency: 'scheduled', org_id: org, created_by: S.me, driver_id: null,
+        title: to ? 'Ride to IND' : 'Ride from IND', notes: clean(p.notes) || null, blind: p.blind !== false, need_by: to ? p.pickup_at : p.flight_at, invoice_ref: null, ride,
+        created_at: iso(), updated_at: iso(), events: [], messages: [], quotes: [], attachments: [], items: [],
+        stops: rideStops(p).map((x, i) => Object.assign({ id: uid('stop'), seq: i + 1, supplier_slug: null, status: 'pending', arrived_at: null, done_at: null, received_by: null, note: null, contact: null, lat: null, lng: null, instructions: null }, x)) };
+      S.orders[o.id] = o;
+      if (['owner', 'dispatcher'].includes(r) && p.request_id) { const q = S.rides.find((x) => x.id === p.request_id); if (q) q.status = 'booked'; }
+      log(o, 'order_placed', { ride: p.direction, passengers: ride.passengers });
+      pushDispatch(o, 'New airport ride', o.ref + ' needs a quote.');
+      return { id: o.id, ref: o.ref, kind: 'ride' };
+    },
+    cc_request_ride({ p }) {
+      const nm = clean(p.name), ph = clean(p.phone);
+      if (nm.length < 2 || nm.length > 80) fail('Add your name.');
+      if (ph.replace(/[^0-9]/g, '').length < 10) fail('Add a phone number we can call or text.');
+      rideCheck(p);
+      S.rides.unshift({ id: S.rides.length + 1, name: nm, phone: ph, email: clean(p.email) || null, direction: p.direction, town: clean(p.town) || null, address: clean(p.address),
+        flight: clean(p.flight) || null, flight_at: p.flight_at || null, pickup_at: p.pickup_at || null, passengers: Number(p.passengers), bags: Number(p.bags || 0), notes: clean(p.notes) || null, at: iso(), status: 'new' });
+      Object.values(S.users).filter((u) => ['owner', 'dispatcher'].includes(u.role) && u.active).forEach((u) => push(u.id, null, 'Airport ride request', 'Someone asked for a ride. Open Admin to quote it.'));
+      return { ok: true };
+    },
+    cc_ride_requests_open() {
+      req('owner', 'dispatcher');
+      return clone(S.rides.filter((x) => x.status === 'new').map((x) => { const y = Object.assign({}, x); delete y.status; return y; }));
+    },
+    cc_admin_resolve_ride({ p_id, p_status }) {
+      req('owner', 'dispatcher');
+      if (!['booked', 'declined'].includes(p_status)) fail('Unknown status.');
+      const x = S.rides.find((r) => r.id === p_id); if (x) x.status = p_status;
+      return { ok: true };
+    },
   };
 
   // Test and setup helpers, not part of the SQL surface.
@@ -458,6 +518,9 @@
       fn.cc_send_quote({ p_order: b.id, p_parts: 0, p_fee: 0, p_courier: 14000, p_rush: 0, p_note: 'Round trip with a wait at the finisher.', p_valid_hours: 24 });
       fn.cc_send_quote({ p_order: c.id, p_parts: 7600, p_fee: 1500, p_courier: 4500, p_rush: 0, p_note: '', p_valid_hours: 48 });
       api.as(ids.client); fn.cc_respond_quote({ p_order: c.id, p_accept: true, p_note: '' });
+      const tomorrow = (h) => { const d = new Date(now() + 864e5); d.setHours(h, 0, 0, 0); return d.toISOString(); };
+      S.me = null; fn.cc_request_ride({ p: { name: 'Sample Traveler', phone: '(812) 555-0142', direction: 'to_ind', town: 'Seymour', address: '300 Sample Ave, Seymour, IN', pickup_at: tomorrow(5), flight: 'Sample Air 410', passengers: 2, bags: 3 } });
+      api.as(ids.client); fn.cc_submit_ride({ p: { direction: 'from_ind', town: 'Columbus', place_name: 'Sample Bracket Co. guest house', address: '200 Example Ave, Columbus, IN', flight: 'Sample Air 88', flight_at: tomorrow(16), passengers: 1, bags: 2, passenger_name: 'Visiting engineer (sample)', passenger_phone: '(812) 555-0177' } });
       api.as(ids.driver); fn.cc_set_duty({ p_on: true, p_vehicle: 'White cargo van' }); fn.cc_ping({ p_lat: 39.2014, p_lng: -85.9214, p_accuracy: 12 });
       api.as(ids.driver2); fn.cc_set_duty({ p_on: true, p_vehicle: 'Pickup' }); fn.cc_ping({ p_lat: 39.2596, p_lng: -85.9090, p_accuracy: 20 });
       api.as(null);

@@ -112,6 +112,17 @@ test('demo and SQL give the same shapes through a whole job', () => {
   run('client', 'cc_alerts'); run('client', 'cc_alerts_read');
   run('owner', 'cc_admin_overview');
   run('driver', 'cc_set_duty', () => ({ p_on: false, p_vehicle: null }));
+
+  // Airport rides take the same shapes in both.
+  const soon = new Date(Date.now() + 864e5).toISOString();
+  const rideReq = { name: 'Pat Rider', phone: '8125550100', direction: 'to_ind', town: 'Columbus', address: '500 Sample St, Columbus, IN', pickup_at: soon, passengers: 2, bags: 1, flight: 'X 1' };
+  sqlCall(owner, 'cc_alerts_read'); demo.as(D.owner); demo.rpc('cc_alerts_read');
+  raw(`begin; set local role anon; select public.cc_request_ride(${q(JSON.stringify(rideReq))}::jsonb); commit;`);
+  demo.as(null); demo.rpc('cc_request_ride', { p: rideReq });
+  run('owner', 'cc_ride_requests_open');
+  const [rs, rd] = run('client', 'cc_submit_ride', () => ({ p: { ...rideReq, passenger_name: 'Pat Rider', passenger_phone: '8125550100' } }));
+  ids.sql.r = rs.id; ids.demo.r = rd.id;
+  run('client', 'cc_get_order', (i) => ({ p_order: i.r })); run('owner', 'cc_list_orders'); run('client', 'cc_list_orders');
 });
 
 test('both backends refuse the same things with the same words', () => {
