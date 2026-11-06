@@ -65,9 +65,7 @@ export const SUPPLIERS = [
   { id: 'linde-columbus', name: 'Linde Welding Gas & Equipment', caps: ['gases-welding-supply'], city: 'Columbus',
     address: '111 S National Rd, Columbus, IN 47201', phone: '(812) 376-3314', hours: 'Monday to Friday 8 AM to 3:30 PM', web: 'https://stores.lindedirect.com/in/columbus/industrial-supply-70615.html',
     note: 'We can pick up wire, rods, abrasives and safety gear. We do not carry gas cylinders.', source: 'https://stores.lindedirect.com/in/columbus/industrial-supply-70615.html', checked: D },
-  { id: 'dsi-industries', name: 'DSI Industries (Developmental Services Inc.)', caps: ['kitting-repack', 'packaging'], city: 'Columbus',
-    address: '2920 10th St, Columbus, IN', phone: '(812) 376-9404',
-    note: 'Nonprofit serving people with disabilities. Call to confirm whether it takes contract packaging or sorting work.', source: 'https://local.madisoncourier.com/columbus-in/dsi-industries-812-376-9404', checked: D, verify: true },
+  // DSI is in catalog-additions.json with both its Columbus and Seymour sites.
   { id: 'pca-columbus-container', name: 'PCA Columbus Container', caps: ['packaging'], city: 'Columbus', note: 'Named among top local employers. Address not confirmed.', source: EDC, checked: D, verify: true },
 ];
 

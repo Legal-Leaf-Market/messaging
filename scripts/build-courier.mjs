@@ -33,9 +33,10 @@ if (!nda) throw new Error('NDA text not found in setup-courier.sql');
 // Rows from outside research replace a hand-checked row of the same name and stay marked "verify".
 const extraPath = resolve(root, 'courier/catalog-additions.json');
 const extras = existsSync(extraPath) ? JSON.parse(readFileSync(extraPath, 'utf8')) : [];
-const key = (n) => n.toLowerCase().replace(/[^a-z]/g, '').slice(0, 12);
-const extraKeys = new Set(extras.map((e) => key(e.name)));
-const suppliers = SUPPLIERS.filter((x) => !extraKeys.has(key(x.name))).concat(extras);
+// Same business if the names match once "Inc.", "Co." and anything in brackets are dropped.
+const key = (n) => n.toLowerCase().replace(/\(.*?\)/g, '').replace(/\b(inc|co|llc|corp|corporation|company|the)\b/g, '').replace(/[^a-z]/g, '');
+const same = (a, b) => { const x = key(a), y = key(b); return x === y || x.startsWith(y) || y.startsWith(x); };
+const suppliers = SUPPLIERS.filter((x) => !extras.some((e) => same(e.name, x.name))).concat(extras);
 
 const data = {
   hocOrigin: HOC_ORIGIN, hocTaken: hoc.taken, suppliers, hocCaps: HOC_CAPS, capLabels: CAP_LABELS, areaMiles: AREA_MILES, hoc: hoc.rows,
