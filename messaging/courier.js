@@ -9,6 +9,8 @@
   const SUPABASE_ANON_KEY = 'sb_publishable_m_BQ-HC1v3-JANssdXJRlA_9TphYPCM'; // meant to be public, the database rules protect the data
   const LOGIN_DOMAIN = 'crossroadsweddingco.shop';
   const BRAND = 'Private Line Courier'; // working name, one place to change it
+  const CONTACT_PHONE = '(812) 671-1780';
+  const CONTACT_EMAIL = 'jake@crossroadsweddingco.shop';
   const GOOGLE_TILES_KEY = '';          // optional: a Google Map Tiles key turns on Google satellite imagery
   const NO_CARRY = 'Hazmat and gas cylinders, firearms and ammunition, cannabis or THC products, cash and valuables, live animals, or anything illegal to ship.';
   // Starting rate card for the price suggestion. Dispatch always sets the real quote.
@@ -174,6 +176,7 @@
   async function boot() {
     if (DEMO) return gateDemo();
     if (await backend.session()) return enter();
+    if (qs.has('new')) return gateRequest(); // the pamphlet's QR code lands here
     gateLogin();
   }
   async function enter() {
@@ -226,6 +229,7 @@
         btn.disabled = false;
       } }, u, p, btn, err),
       h('button', { class: 'link', type: 'button', onclick: gateRequest }, 'New here? Request an account'),
+      h('p', { class: 'small muted' }, 'Need it moving now? Call ', h('a', { href: tel(CONTACT_PHONE) }, CONTACT_PHONE), '.'),
     ]));
   }
   function gateRequest() {
@@ -236,7 +240,7 @@
     const err = h('div', { class: 'err' });
     root.replaceChildren(gateCard([
       h('h2', null, 'Request an account'),
-      h('p', { class: 'muted small' }, 'We set up every account by hand, and you sign the NDA before your first run.'),
+      h('p', { class: 'muted small' }, 'We set up every account by hand, and you sign the NDA before your first run. In a hurry? Call or text ', h('a', { href: tel(CONTACT_PHONE) }, CONTACT_PHONE), ' or email ', h('a', { href: 'mailto:' + CONTACT_EMAIL }, CONTACT_EMAIL), '.'),
       field('company', 'Company'), field('contact', 'Your name', { autocomplete: 'name' }), field('email', 'Email', { type: 'email', autocomplete: 'email' }), field('phone', 'Phone', { type: 'tel', autocomplete: 'tel' }),
       h('label', { class: 'f' }, 'What do you need?', kind), h('label', { class: 'f' }, 'Anything else', note),
       h('button', { class: 'primary', type: 'button', onclick: async () => {

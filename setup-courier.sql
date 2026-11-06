@@ -404,7 +404,7 @@ begin
   if e = '' and btrim(coalesce(p_phone, '')) = '' then raise exception 'Add an email or a phone number.'; end if;
   if p_kind not in ('client', 'store', 'driver') then raise exception 'Pick what you need access for.'; end if;
   if (select count(*) from cc_access_requests where created_at > now() - interval '1 day') >= 50 then
-    raise exception 'Too many requests today. Call us instead.';
+    raise exception 'Too many requests today. Call (812) 671-1780 instead.';
   end if;
   if e <> '' and exists (select 1 from cc_access_requests where lower(email) = e and created_at > now() - interval '1 day') then
     return jsonb_build_object('ok', true);
