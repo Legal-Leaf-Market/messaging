@@ -1001,7 +1001,8 @@
     }
     if (el.__map) { el.__map.remove(); el.__map = null; }
     el.replaceChildren();
-    const street = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap contributors' });
+    // OpenStreetMap refuses tiles sent with no referrer, and this site sends none by default, so the tiles send just the site's address.
+    const street = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap contributors', referrerPolicy: 'strict-origin-when-cross-origin' });
     const map = L.map(el, { layers: [street] }).setView([39.2014, -85.9214], 10);
     el.__map = map;
     satelliteLayer(L).then((sat) => { L.control.layers({ Street: street, Satellite: sat }, null, { collapsed: false }).addTo(map); });
