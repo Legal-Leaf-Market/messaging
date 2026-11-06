@@ -16,6 +16,7 @@ const srv = http.createServer((q, r) => {
 const port = srv.address().port;
 const b = await chromium.launch();
 const errors = [];
+const tagShots = [];
 async function page(w, h) {
   const c = await b.newContext({ viewport: { width: w, height: h } });
   const p = await c.newPage();
@@ -104,6 +105,28 @@ for (const [label, w, h] of [['desktop', 1280, 860], ['phone', 390, 800]]) {
   await p.getByRole('button', { name: 'Approve and send a driver' }).click();
   await p.getByText('Approved, finding a driver').first().waitFor();
 
+  // Share link, calendar and box tags, from the customer's job page.
+  const share = await p.getByLabel('Tracking link').inputValue();
+  check(/courier\.html\?t=[0-9a-f]{64}$/.test(share), label + ' job has a 64-character tracking link');
+  await p.getByRole('button', { name: 'Preview' }).click();
+  await p.getByText('Being priced|Waiting on approval|Booked|Finding a driver', { exact: false }).first().waitFor().catch(() => {});
+  await p.getByRole('heading', { name: new RegExp('Job ' + ref) }).waitFor();
+  const pubText = await p.locator('#root').innerText();
+  check(!pubText.includes('Crate of brackets') && !pubText.includes('$') && !pubText.includes('Gladstone'), label + ' tracking page shows no cargo, price or address');
+  await shot(p, `${label}-19-public-track`); await noHScroll(p, label + ' public track');
+  await p.getByRole('button', { name: 'Back to the job' }).click();
+  await p.getByRole('button', { name: 'Print box tags' }).click();
+  await p.evaluate(() => { window.print = () => { window.__printed = (window.__printed || 0) + 1; }; });
+  await p.getByLabel('How many boxes').fill('3');
+  await p.getByRole('button', { name: 'Print tags' }).click();
+  check(await p.locator('#print-area .ptag').count() === 3 && await p.evaluate(() => window.__printed) === 1, label + ' prints one tag per box');
+  await p.emulateMedia({ media: 'print' });
+  await p.locator('#print-area').screenshot({ path: `${OUT}/${label}-20-tags.png` });
+  await p.emulateMedia({ media: 'screen' });
+  await p.evaluate(() => document.body.classList.remove('printing'));
+  const orderId = new URL(share).searchParams.get('t') ? await p.evaluate(() => location.hash.split('/')[2]) : '';
+  tagShots.push([`${OUT}/${label}-20-tags.png`, orderId]);
+
   // Dispatch offers it.
   await sw.selectOption({ label: 'Dispatch and owner' });
   await p.getByRole('link', { name: new RegExp(ref) }).click();
@@ -123,6 +146,18 @@ for (const [label, w, h] of [['desktop', 1280, 860], ['phone', 390, 800]]) {
   await shot(p, `${label}-10-driver-job`); await noHScroll(p, label + ' driver job');
   for (let i = 0; i < 3; i++) {
     await p.getByRole('button', { name: 'I am here' }).click();
+    if (i === 0) {
+      await p.getByRole('button', { name: /^Check a box tag/ }).click();
+      await p.getByLabel('Job number on the tag').fill('PL-0000');
+      await p.getByRole('button', { name: 'Check', exact: true }).click();
+      await p.getByText(/is not for PL-/).waitFor();
+      await p.getByLabel('Job number on the tag').fill(ref.toLowerCase());
+      await p.getByRole('button', { name: 'Check', exact: true }).click();
+      await p.getByText(/Tag matches/).waitFor();
+      await p.getByRole('button', { name: 'Picked up' }).click();
+      check((await p.getByLabel('Note').inputValue()) === 'Box tags checked: 1', label + ' tag check goes into the stop note');
+      await p.getByRole('button', { name: 'Back' }).click();
+    }
     if (i < 2) {
       await p.getByRole('button', { name: i === 0 ? 'Picked up' : 'Dropped at processing' }).click();
       await p.getByRole('button', { name: 'Mark done' }).click();
@@ -228,6 +263,12 @@ for (const [label, w, h] of [['desktop', 1280, 860], ['phone', 390, 800]]) {
   await p.close();
 }
 await b.close(); srv.close();
+// The printed tags must scan: decode each tag sheet screenshot with a real QR decoder.
+const { execFileSync } = await import('node:child_process');
+for (const [file, id] of tagShots) {
+  const got = execFileSync('python3', ['-c', 'import cv2,sys\nok,d,_,_=cv2.QRCodeDetector().detectAndDecodeMulti(cv2.imread(sys.argv[1]))\nprint(\"\\n\".join(d) if ok else \"\")', file], { encoding: 'utf8' }).trim().split('\n').filter(Boolean);
+  check(got.length >= 1 && got.every((u) => u.includes('?o=' + id + '&b=')), 'printed tags decode to the job (' + got.length + ' read from ' + file.split('/').pop() + ')');
+}
 // Copy rule: no dashes in words people read. Code like "a - b" is fine, so look for a word on each side.
 const dashes = readFileSync(resolve(ROOT, 'messaging/courier.js'), 'utf8').match(/'[^'\n]*([A-Za-z] - [A-Za-z]|—|–)[^'\n]*'/g);
 if (dashes) errors.push('visible dashes: ' + dashes.join(' | '));

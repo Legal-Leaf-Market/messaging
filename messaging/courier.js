@@ -59,8 +59,8 @@
     document.body.append(t);
     setTimeout(() => t.remove(), 4500);
   }
-  function modal(title, build) {
-    const close = () => { scrim.remove(); document.removeEventListener('keydown', esc); };
+  function modal(title, build, onClose) {
+    const close = () => { scrim.remove(); document.removeEventListener('keydown', esc); if (onClose) onClose(); };
     const esc = (e) => { if (e.key === 'Escape') close(); };
     const box = h('div', { class: 'dialog', role: 'dialog', 'aria-modal': 'true', 'aria-label': title }, h('h2', null, title));
     add(box, build(close));
@@ -179,6 +179,7 @@
 
   /* ---------- start ---------- */
   async function boot() {
+    if (qs.get('t') && !DEMO) return gateTrack(qs.get('t'));
     if (DEMO) return gateDemo();
     if (await backend.session()) return enter();
     if (qs.has('new')) return gateRequest(); // the pamphlet's QR code lands here
@@ -197,7 +198,7 @@
     window.onhashchange = render;
     clearInterval(pollTimer); pollTimer = setInterval(softRefresh, 30000);
     if (!location.hash || location.hash === '#/') location.hash = home();
-    const o = qs.get('order');
+    const o = qs.get('order') || qs.get('o'); // push alerts and box tags open a job directly
     if (o) location.hash = '#/job/' + o;
     render();
   }
@@ -211,6 +212,7 @@
     softRefresh(true);
   }
   function softRefresh(force) {
+    if (paused) return;
     const el = document.activeElement;
     if (document.querySelector('.scrim')) return;
     if (!force && el && /INPUT|TEXTAREA|SELECT/.test(el.tagName)) return;
@@ -295,6 +297,34 @@
       h('button', { class: 'link', type: 'button', onclick: gateRide }, 'See the public airport ride form'),
     ]));
   }
+  // The page behind a shared tracking link. No login: the 64-character link is the key.
+  let trackTimer = null, paused = false;
+  async function gateTrack(token, back) {
+    clearInterval(trackTimer);
+    paused = !!back; // a preview inside the app: hold the app's own refresh until Back
+    const body = h('div', { class: 'stack' });
+    const mapEl = h('div', { class: 'map', 'data-map': '1' });
+    const card = gateCard([h('h2', null, BRAND), body, mapEl, h('p', { class: 'small muted' }, 'This page updates every 30 seconds. Questions? Call ', h('a', { href: tel(CONTACT_PHONE) }, CONTACT_PHONE), '.'),
+      back ? h('button', { class: 'link', type: 'button', onclick: () => { clearInterval(trackTimer); paused = false; back(); } }, 'Back to the job') : null], true);
+    root.replaceChildren(card);
+    const PUBLIC = { requested: 'Being priced', quoted: 'Waiting on approval', approved: 'Booked', dispatching: 'Finding a driver', assigned: 'Driver assigned', in_progress: 'On the way', delivered: 'Done', closed: 'Done', cancelled: 'Cancelled', declined: 'Cancelled' };
+    async function draw() {
+      try {
+        const t = await backend.rpc('cc_public_track', { p_token: token });
+        body.replaceChildren(
+          h('div', { class: 'traveler' }, h('h2', null, 'Job ' + t.ref), h('p', null, h('span', { class: 'status' }, PUBLIC[t.status] || t.status)), t.driver ? h('p', null, 'Your driver: ' + t.driver) : null,
+            t.need_by ? h('p', null, (t.kind === 'ride' ? (t.direction === 'from_ind' ? 'Flight lands ' : 'Pickup ') : 'Need by ') + when(t.need_by)) : null),
+          h('div', { class: 'route' }, t.stops.map((x) => h('div', { class: 'stop ' + (x.status === 'done' ? 'done' : x.status === 'arrived' ? 'arrived' : '') },
+            h('div', { class: 'rail' }, h('div', { class: 'dot' }), h('div', { class: 'bar' })),
+            h('div', { class: 'body' }, h('div', { class: 'where' }, (t.kind === 'ride' ? (x.kind === 'pickup' ? 'Pickup' : 'Drop-off') : 'Stop ' + x.seq + ': ' + STOPK[x.kind]) + (x.place_name ? ', ' + x.place_name : '')),
+              h('div', { class: 'line muted' }, x.status === 'done' ? 'Done ' + when(x.done_at) : x.status === 'arrived' ? 'Driver is there now' : 'Not yet')))))) ;
+        if (t.live) { mapEl.classList.remove('hidden'); await drawMap(mapEl, { drivers: [{ name: t.driver || 'Driver', lat: t.live.lat, lng: t.live.lng }] }); }
+        else mapEl.classList.add('hidden');
+      } catch (e) { body.replaceChildren(h('p', { class: 'err' }, e.message)); mapEl.classList.add('hidden'); clearInterval(trackTimer); }
+    }
+    await draw();
+    trackTimer = setInterval(draw, 30000);
+  }
   function gatePending() {
     root.replaceChildren(gateCard([h('h2', null, 'Your login is waiting for approval'), h('p', null, 'We will let you know when it is ready.'), h('button', { onclick: signOut }, 'Sign out')]));
   }
@@ -354,7 +384,7 @@
   }
   let renderToken = 0;
   async function render() {
-    if (!me) return;
+    if (!me || paused) return;
     const t = ++renderToken;
     const r = route();
     if (r.name === 'home') { location.hash = home(); return; }
@@ -606,6 +636,7 @@
     if (side === 'client') add(acts, clientActions(o));
     if (side === 'dispatch') add(acts, dispatchPanel(o));
     if (acts.childNodes.length) add(right, acts);
+    if (side !== 'driver') add(right, shareCard(o));
     if (!o.ride) add(right, filesCard(o));
     add(right, messagesCard(o));
     add(right, timelineCard(o));
@@ -725,6 +756,8 @@
     if (mine && next) {
       out.push(h('section', { class: 'card' }, h('h2', null, 'Next: ' + STOPK[next.kind] + ' at ' + next.place_name),
         next.address ? h('p', null, next.address) : null, next.instructions ? h('p', { class: 'small' }, next.instructions) : null,
+        h('p', { class: 'small' }, h('a', { href: tel(CONTACT_PHONE) }, 'Call dispatch'), next.contact && o.ride ? ' or ' : null, next.contact && o.ride ? h('a', { href: smsUrl(o.ride.passenger_phone, 'Hi, this is your driver from ' + BRAND + '. ') }, 'text the rider') : null),
+        next.status === 'arrived' && !o.ride ? h('button', { type: 'button', onclick: () => scanDialog(o, next) }, 'Check a box tag' + (tagChecks[next.id] ? ' (' + tagChecks[next.id] + ' checked)' : '')) : null,
         h('a', { href: mapsUrl(next), target: '_blank', rel: 'noopener noreferrer' }, h('button', { type: 'button', class: 'big' }, 'Open in Google Maps')),
         next.status === 'pending'
           ? act('I am here', async () => { await backend.rpc('cc_stop_update', { p_stop: next.id, p_action: 'arrive', p_received_by: null, p_note: null, p_lat: lastPos && lastPos.lat, p_lng: lastPos && lastPos.lng }); keepAwake(); reload(); }, 'primary big')
@@ -749,7 +782,7 @@
       return;
     }
     modal(s.kind === 'drop' ? 'Deliver' : s.kind === 'process' ? 'Dropped at processing' : 'Picked up', (close) => {
-      const who = h('input', { autocomplete: 'off', 'aria-label': 'Name of the person who took it' }), note = h('input', { placeholder: 'Boxes: 2, gate was closed', 'aria-label': 'Note' });
+      const who = h('input', { autocomplete: 'off', 'aria-label': 'Name of the person who took it' }), note = h('input', { placeholder: 'Boxes: 2, gate was closed', 'aria-label': 'Note', value: tagChecks[s.id] ? 'Box tags checked: ' + tagChecks[s.id] : '' });
       const photo = h('input', { type: 'file', accept: 'image/*', capture: 'environment', 'aria-label': 'Photo' });
       return h('div', { class: 'stack' },
         h('label', { class: 'f' }, 'Name of the person who took it' + (s.kind === 'drop' ? '' : ' (optional)'), who),
@@ -792,13 +825,86 @@
       h('span', null, (EVENT[e.type] || e.type) + (e.detail && e.detail.received_by ? ', ' + e.detail.received_by : '') + (e.detail && e.detail.lat ? ', location logged' : '')), h('span', { class: 'muted', style: 'flex:none' }, when(e.at))))));
   }
 
+  /* ---------- share, calendar, tags ---------- */
+  const smsUrl = (phone, body) => 'sms:' + String(phone || '').replace(/[^0-9+]/g, '') + '?&body=' + encodeURIComponent(body || '');
+  const tagChecks = {};
+  function icsDate(t) { return new Date(t).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, ''); }
+  const icsText = (x) => String(x || '').replace(/\\/g, '\\\\').replace(/([,;])/g, '\\$1').replace(/\n/g, '\\n');
+  function downloadIcs(o) {
+    const start = o.ride ? (o.ride.direction === 'to_ind' ? o.ride.pickup_at : o.ride.flight_at) : o.need_by;
+    const where = o.stops.length ? (o.stops[0].address || o.stops[0].place_name) : '';
+    const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Private Line Courier//EN', 'BEGIN:VEVENT', 'UID:' + o.id + '@crossroadsweddingco.shop', 'DTSTAMP:' + icsDate(Date.now()),
+      'DTSTART:' + icsDate(start), 'DTEND:' + icsDate(Date.parse(start) + 90 * 60000), 'SUMMARY:' + icsText((o.title || KIND[o.kind]) + ' (' + o.ref + ')'),
+      'LOCATION:' + icsText(where), 'DESCRIPTION:' + icsText(BRAND + ' job ' + o.ref + '. Questions: ' + CONTACT_PHONE), 'END:VEVENT', 'END:VCALENDAR'];
+    const a = h('a', { href: URL.createObjectURL(new Blob([lines.join('\r\n') + '\r\n'], { type: 'text/calendar' })), download: o.ref + '.ics' });
+    document.body.append(a); a.click(); a.remove();
+  }
+  function shareCard(o) {
+    if (!o.track_token || ['closed', 'cancelled', 'declined'].includes(o.status)) return null;
+    const url = location.origin + '/messaging/courier.html?t=' + o.track_token;
+    const start = o.ride ? (o.ride.direction === 'to_ind' ? o.ride.pickup_at : o.ride.flight_at) : o.need_by;
+    return h('section', { class: 'card' }, h('h2', null, 'Share and plan'),
+      h('p', { class: 'small muted' }, 'Anyone with this link sees this job\u2019s progress and the driver while it moves. It shows no prices, cargo or addresses.'),
+      h('input', { class: 'share-url', readonly: true, value: url, 'aria-label': 'Tracking link', onfocus: (e) => e.target.select() }),
+      h('div', { class: 'row' },
+        h('button', { type: 'button', onclick: async () => { try { await navigator.clipboard.writeText(url); toast('Link copied.'); } catch (e) { toast('Select the link and copy it.'); } } }, 'Copy link'),
+        h('a', { href: smsUrl(o.ride ? o.ride.passenger_phone : '', 'Track ' + o.ref + ': ' + url) }, h('button', { type: 'button' }, 'Text the link')),
+        DEMO ? h('button', { type: 'button', onclick: () => gateTrack(o.track_token, () => { drawTop(); root.replaceChildren(topEl, h('main', { id: 'main' })); render(); }) }, 'Preview') : h('a', { href: url, target: '_blank', rel: 'noopener' }, h('button', { type: 'button' }, 'Open')),
+        start ? h('button', { type: 'button', onclick: () => downloadIcs(o) }, 'Add to calendar') : null,
+        !o.ride ? h('button', { type: 'button', onclick: () => tagsDialog(o) }, 'Print box tags') : null));
+  }
+  function tagsDialog(o) {
+    modal('Print box tags for ' + o.ref, (close) => {
+      const n = h('input', { type: 'number', min: '1', max: '20', value: '1', inputmode: 'numeric', 'aria-label': 'How many boxes' });
+      return h('div', { class: 'stack' }, h('p', { class: 'small' }, 'One tag per box. The driver checks each tag at every stop.' + (o.blind ? ' Tags show only the job number, never your company or the contents.' : '')),
+        h('label', { class: 'f' }, 'How many boxes', n),
+        act('Print tags', async () => { const k = Math.round(Number(n.value)); if (!(k >= 1 && k <= 20)) throw new Error('Print 1 to 20 tags at a time.'); close(); printTags(o, k); }, 'primary'));
+    });
+  }
+  function printTags(o, n) {
+    const area = document.getElementById('print-area');
+    const base = location.origin + '/messaging/courier.html?o=' + o.id + '&b=';
+    area.replaceChildren(h('div', { class: 'tag-sheet' }, Array.from({ length: n }, (_, i) => h('div', { class: 'ptag' },
+      h('img', { src: window.CC_QR.dataUrl(base + (i + 1), 8), alt: 'QR code for ' + o.ref }),
+      h('div', { class: 'ptag-brand' }, BRAND), h('div', { class: 'ptag-ref' }, o.ref), h('div', { class: 'ptag-box' }, 'Box ' + (i + 1) + ' of ' + n),
+      h('div', { class: 'ptag-note' }, o.blind ? 'Confidential. Do not open. If found, call ' + CONTACT_PHONE + '.' : 'Questions: ' + CONTACT_PHONE)))));
+    document.body.classList.add('printing');
+    const done = () => { document.body.classList.remove('printing'); window.removeEventListener('afterprint', done); };
+    window.addEventListener('afterprint', done);
+    window.print();
+  }
+  function scanDialog(o, s) {
+    let stream = null, timer = null;
+    const stop = () => { clearInterval(timer); if (stream) stream.getTracks().forEach((t) => t.stop()); stream = null; };
+    modal('Check a box tag', (close) => {
+      const status = h('p', { class: 'small' }, 'Point the camera at the QR code on the tag.');
+      const video = h('video', { class: 'scan-video', playsinline: true, muted: true, autoplay: true });
+      const typed = h('input', { placeholder: o.ref, autocapitalize: 'characters', 'aria-label': 'Job number on the tag' });
+      const check = (text) => {
+        const t = String(text || '').trim();
+        if (t.includes(o.id) || t.toUpperCase() === o.ref) {
+          tagChecks[s.id] = (tagChecks[s.id] || 0) + 1; close(); toast('Tag matches ' + o.ref + '. ' + tagChecks[s.id] + (tagChecks[s.id] === 1 ? ' box' : ' boxes') + ' checked here.');
+        } else status.textContent = 'That tag is not for ' + o.ref + '. Set the box aside and call dispatch.';
+      };
+      if ('BarcodeDetector' in window && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }).then((st) => {
+          stream = st; video.srcObject = st;
+          const det = new window.BarcodeDetector({ formats: ['qr_code'] });
+          timer = setInterval(async () => { try { const r = await det.detect(video); if (r[0]) check(r[0].rawValue); } catch (e) { /* keep trying */ } }, 400);
+        }).catch(() => { status.textContent = 'The camera is not available. Type the job number from the tag.'; video.remove(); });
+      } else { status.textContent = 'This phone can\u2019t scan inside the app. Type the job number from the tag.'; video.remove(); }
+      return h('div', { class: 'stack' }, status, video, h('label', { class: 'f' }, 'Or type the job number', typed),
+        h('div', { class: 'row' }, h('button', { type: 'button', class: 'primary', onclick: () => check(typed.value) }, 'Check'), h('button', { type: 'button', onclick: close }, 'Done')));
+    }, stop);
+  }
+
   /* ---------- airport rides ---------- */
   function rideCard(o) {
     const r = o.ride;
     return h('section', { class: 'card' }, h('h2', null, r.direction === 'to_ind' ? 'Ride to the airport' : 'Ride from the airport'),
       h('div', { class: 'quote-lines' },
         h('div', null, h('span', null, 'Rider'), h('span', null, r.passenger_name)),
-        h('div', null, h('span', null, 'Phone'), h('a', { href: tel(r.passenger_phone) }, r.passenger_phone)),
+        h('div', null, h('span', null, 'Phone'), h('span', { class: 'row', style: 'gap:12px' }, h('a', { href: tel(r.passenger_phone) }, r.passenger_phone), h('a', { href: smsUrl(r.passenger_phone, o.side === 'driver' ? 'Hi, this is your driver from ' + BRAND + '. ' : '') }, 'Text'))),
         r.direction === 'to_ind' ? h('div', null, h('span', null, 'Pickup'), h('span', null, when(r.pickup_at))) : h('div', null, h('span', null, 'Flight lands'), h('span', null, when(r.flight_at))),
         r.flight ? h('div', null, h('span', null, 'Flight'), h('span', null, r.flight)) : null,
         h('div', null, h('span', null, 'Riders and bags'), h('span', null, riders(r.passengers) + ', ' + r.bags + (r.bags === 1 ? ' bag' : ' bags')))),

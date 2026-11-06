@@ -411,3 +411,26 @@ test('airport rides: public request, dispatch books it, driver runs it, no recei
   // Plain courier jobs still need the receiver's name.
   assert.ok(raw("select prosrc from pg_proc where proname = 'cc_stop_update'").includes("o.kind <> 'ride'"));
 });
+
+test('a shared tracking link shows progress and nothing private', () => {
+  const id = call(clientA, 'cc_submit_order', J(goodOrder())).id;
+  const tok = call(clientA, 'cc_get_order', U(id)).track_token;
+  assert.match(tok, /^[0-9a-f]{64}$/);
+  const pubT = (t) => JSON.parse(raw(`begin; set local role anon; select public.cc_public_track(${q(t)}); commit;`));
+  const v = pubT(tok);
+  assert.equal(v.status, 'requested');
+  const text = JSON.stringify(v);
+  for (const secret of ['Secret bracket', 'Sample Client', 'Main St', 'Lee', 'Sample Machine Shop', 'total']) assert.ok(!text.includes(secret), 'link leaks ' + secret);
+  assert.equal(v.stops.length, 3);
+  assert.throws(() => pubT('x'.repeat(64)), /not valid/);
+  assert.throws(() => pubT('short'), /not valid/);
+  assert.equal(call(driver2, 'cc_get_order', U((() => { call(jake, 'cc_send_quote', U(id), 0, 0, 100, 0, '', 24); call(clientA, 'cc_respond_quote', U(id), true, null); call(jake, 'cc_dispatch', U(id), U(driver2)); return id; })())).track_token, undefined, 'drivers do not get the link');
+  call(driver2, 'cc_set_duty', true, null);
+  call(driver2, 'cc_ping', 39.3, -85.9, null, null, null);
+  const st = call(driver2, 'cc_get_order', U(id)).stops;
+  call(driver2, 'cc_stop_update', U(st[0].id), 'arrive', null, null, null, null);
+  const moving = pubT(tok);
+  assert.equal(moving.status, 'in_progress');
+  assert.equal(typeof moving.live.lat, 'number');
+  assert.ok(moving.driver && !moving.driver.includes(' '), 'first name only');
+});

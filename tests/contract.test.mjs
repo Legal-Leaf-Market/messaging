@@ -123,6 +123,11 @@ test('demo and SQL give the same shapes through a whole job', () => {
   const [rs, rd] = run('client', 'cc_submit_ride', () => ({ p: { ...rideReq, passenger_name: 'Pat Rider', passenger_phone: '8125550100' } }));
   ids.sql.r = rs.id; ids.demo.r = rd.id;
   run('client', 'cc_get_order', (i) => ({ p_order: i.r })); run('owner', 'cc_list_orders'); run('client', 'cc_list_orders');
+  // The public tracking page.
+  const tokS = sqlCall(S.client, 'cc_get_order', { p_order: ids.sql.o }).track_token;
+  demo.as(D.client); const tokD = demo.rpc('cc_get_order', { p_order: ids.demo.o }).track_token;
+  const pubS = JSON.parse(raw(`begin; set local role anon; select public.cc_public_track(${q(tokS)}); commit;`));
+  demo.as(null); same(pubS, demo.rpc('cc_public_track', { p_token: tokD }), 'public track');
 });
 
 test('both backends refuse the same things with the same words', () => {

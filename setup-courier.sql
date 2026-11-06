@@ -102,11 +102,15 @@ create table if not exists public.cc_orders (
   need_by timestamptz,
   invoice_ref text,
   ride jsonb,
+  -- Secret for the share-a-tracking-link page. 64 random hex characters, so it can't be guessed.
+  track_token text unique default (replace(gen_random_uuid()::text, '-', '') || replace(gen_random_uuid()::text, '-', '')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 -- For a database that already ran an earlier version of this file.
 alter table public.cc_orders add column if not exists ride jsonb;
+alter table public.cc_orders add column if not exists track_token text unique default (replace(gen_random_uuid()::text, '-', '') || replace(gen_random_uuid()::text, '-', ''));
+update public.cc_orders set track_token = replace(gen_random_uuid()::text, '-', '') || replace(gen_random_uuid()::text, '-', '') where track_token is null;
 alter table public.cc_orders drop constraint if exists cc_orders_kind_check;
 alter table public.cc_orders add constraint cc_orders_kind_check check (kind in ('courier', 'purchase', 'process', 'transfer', 'ride'));
 create index if not exists cc_orders_org_idx on public.cc_orders (org_id, created_at desc);
@@ -838,6 +842,7 @@ begin
       from cc_attachments a where a.order_id = o.id and (side <> 'driver' or a.kind = 'proof' or not o.blind)), '[]'::jsonb)
   );
   if side <> 'driver' then
+    res := res || jsonb_build_object('track_token', o.track_token);
     res := res || jsonb_build_object('quote', (select jsonb_build_object('id', q.id, 'parts_cents', q.parts_cents, 'purchase_fee_cents', q.purchase_fee_cents,
         'courier_cents', q.courier_cents, 'rush_cents', q.rush_cents, 'total_cents', q.total_cents, 'note', q.note, 'valid_until', q.valid_until, 'status', q.status)
       from cc_quotes q where q.order_id = o.id and q.status <> 'superseded' order by q.id desc limit 1));
@@ -1182,6 +1187,34 @@ begin
   return jsonb_build_object('ok', true);
 end $$;
 
+
+-- ── Shared tracking link ─────────────────────────────────────────────────
+-- Anyone holding the link sees one job's progress and, while it moves, the driver. Nothing else:
+-- no prices, no cargo, no customer name, no addresses, and courier stops show only their type.
+create or replace function public.cc_public_track(p_token text) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare o cc_orders; pos cc_driver_pos; others int; live jsonb := null;
+begin
+  if char_length(coalesce(p_token, '')) <> 64 then raise exception 'That tracking link is not valid.'; end if;
+  select * into o from cc_orders where track_token = p_token;
+  if o.id is null then raise exception 'That tracking link is not valid.'; end if;
+  if o.status = 'in_progress' and o.driver_id is not null then
+    select count(*) into others from cc_orders where driver_id = o.driver_id and status = 'in_progress' and id <> o.id;
+    if others = 0 then
+      select * into pos from cc_driver_pos where user_id = o.driver_id and at > now() - interval '10 minutes';
+      if pos.user_id is not null then live := jsonb_build_object('lat', pos.lat, 'lng', pos.lng, 'at', pos.at); end if;
+    end if;
+  end if;
+  return jsonb_build_object(
+    'ref', o.ref, 'kind', o.kind, 'status', o.status, 'need_by', o.need_by,
+    'direction', o.ride->>'direction',
+    'driver', case when o.status in ('assigned', 'in_progress', 'delivered') then (select split_part(display_name, ' ', 1) from profiles where id = o.driver_id) end,
+    'live', live,
+    'stops', coalesce((select jsonb_agg(jsonb_build_object('seq', s.seq, 'kind', s.kind,
+        'place_name', case when o.kind = 'ride' and s.place_name like 'Indianapolis International%' then s.place_name end,
+        'status', s.status, 'done_at', s.done_at) order by s.seq) from cc_stops s where s.order_id = o.id), '[]'::jsonb));
+end $$;
+
 -- ── Who can call what ────────────────────────────────────────────────────
 do $$ declare f record; begin
   for f in select p.oid::regprocedure as sig from pg_proc p join pg_namespace n on n.oid = p.pronamespace
@@ -1206,6 +1239,7 @@ grant execute on function
 to authenticated;
 grant execute on function public.cc_request_access(text, text, text, text, text, text) to anon, authenticated;
 grant execute on function public.cc_request_ride(jsonb) to anon, authenticated;
+grant execute on function public.cc_public_track(text) to anon, authenticated;
 
 -- The profile and message policies call these as the signed-in person.
 grant execute on function public.cc_is_internal(uuid), public.cc_role(uuid), public.cc_is_dispatch(uuid), public.cc_my_org() to authenticated;

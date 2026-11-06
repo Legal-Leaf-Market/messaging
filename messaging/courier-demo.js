@@ -6,6 +6,7 @@
   const iso = (t) => new Date(t === undefined ? now() : t).toISOString();
   let seq = 1000, idn = 1;
   const uid = (p) => (p || 'x') + '-' + (idn++);
+  const token = () => Array.from({ length: 64 }, () => '0123456789abcdef'[Math.floor(Math.random() * 16)]).join('');
   const clone = (x) => JSON.parse(JSON.stringify(x === undefined ? null : x));
   const fail = (m) => { throw new Error(m); };
   const clean = (s) => String(s == null ? '' : s).trim();
@@ -122,7 +123,7 @@
         }
       });
       const o = { id: uid('order'), ref: 'PL-' + (++seq), kind, status: 'requested', urgency: urg, org_id: org, created_by: S.me, driver_id: null,
-        title: clean(p.title).slice(0, 120) || null, notes: clean(p.notes).slice(0, 2000) || null, blind: p.blind !== false, need_by: p.need_by || null, invoice_ref: null, ride: null,
+        title: clean(p.title).slice(0, 120) || null, notes: clean(p.notes).slice(0, 2000) || null, blind: p.blind !== false, need_by: p.need_by || null, invoice_ref: null, ride: null, track_token: token(),
         created_at: iso(), updated_at: iso(), events: [], messages: [], quotes: [], attachments: [],
         stops: stops.map((s, i) => ({ id: uid('stop'), seq: i + 1, kind: s.kind, place_name: clean(s.place_name), address: clean(s.address) || null, supplier_slug: s.supplier_slug || null,
           contact: clean(s.contact) || null, instructions: clean(s.instructions) || null, lat: s.lat === undefined ? null : s.lat, lng: s.lng === undefined ? null : s.lng,
@@ -335,6 +336,7 @@
           sender_name: m.sender_side === 'internal' && side === 'client' ? 'Dispatch' : user(m.sender).display_name })),
         attachments: o.attachments.filter((a) => !isDriver || a.kind === 'proof' || !o.blind).map((a) => ({ id: a.id, kind: a.kind, path: a.path, name: a.name, stop_id: a.stop_id })) };
       if (!isDriver) {
+        res.track_token = o.track_token;
         const q = o.quotes.filter((x) => x.status !== 'superseded').slice(-1)[0];
         res.quote = q ? { id: q.id, parts_cents: q.parts_cents, purchase_fee_cents: q.purchase_fee_cents, courier_cents: q.courier_cents, rush_cents: q.rush_cents, total_cents: q.total_cents, note: q.note, valid_until: q.valid_until, status: q.status } : null;
       }
@@ -444,7 +446,7 @@
       const ride = { direction: p.direction, town: clean(p.town) || null, flight: clean(p.flight) || null, flight_at: p.flight_at || null, pickup_at: p.pickup_at || null,
         passengers: Number(p.passengers), bags: Number(p.bags || 0), passenger_name: who, passenger_phone: clean(p.passenger_phone), request_id: p.request_id || null };
       const o = { id: uid('order'), ref: 'PL-' + (++seq), kind: 'ride', status: 'requested', urgency: 'scheduled', org_id: org, created_by: S.me, driver_id: null,
-        title: to ? 'Ride to IND' : 'Ride from IND', notes: clean(p.notes) || null, blind: p.blind !== false, need_by: to ? p.pickup_at : p.flight_at, invoice_ref: null, ride,
+        title: to ? 'Ride to IND' : 'Ride from IND', notes: clean(p.notes) || null, blind: p.blind !== false, need_by: to ? p.pickup_at : p.flight_at, invoice_ref: null, ride, track_token: token(),
         created_at: iso(), updated_at: iso(), events: [], messages: [], quotes: [], attachments: [], items: [],
         stops: rideStops(p).map((x, i) => Object.assign({ id: uid('stop'), seq: i + 1, supplier_slug: null, status: 'pending', arrived_at: null, done_at: null, received_by: null, note: null, contact: null, lat: null, lng: null, instructions: null }, x)) };
       S.orders[o.id] = o;
@@ -462,6 +464,18 @@
         flight: clean(p.flight) || null, flight_at: p.flight_at || null, pickup_at: p.pickup_at || null, passengers: Number(p.passengers), bags: Number(p.bags || 0), notes: clean(p.notes) || null, at: iso(), status: 'new' });
       Object.values(S.users).filter((u) => ['owner', 'dispatcher'].includes(u.role) && u.active).forEach((u) => push(u.id, null, 'Airport ride request', 'Someone asked for a ride. Open Admin to quote it.'));
       return { ok: true };
+    },
+    cc_public_track({ p_token }) {
+      const o = Object.values(S.orders).find((x) => x.track_token === p_token);
+      if (!p_token || String(p_token).length !== 64 || !o) fail('That tracking link is not valid.');
+      let live = null;
+      if (o.status === 'in_progress' && o.driver_id && !Object.values(S.orders).some((x) => x.driver_id === o.driver_id && x.status === 'in_progress' && x.id !== o.id)) {
+        const p = S.pos[o.driver_id];
+        if (p && now() - Date.parse(p.at) <= 600e3) live = { lat: p.lat, lng: p.lng, at: p.at };
+      }
+      return clone({ ref: o.ref, kind: o.kind, status: o.status, need_by: o.need_by, direction: o.ride ? o.ride.direction : null,
+        driver: ['assigned', 'in_progress', 'delivered'].includes(o.status) && o.driver_id ? user(o.driver_id).display_name.split(' ')[0] : null, live,
+        stops: o.stops.map((x) => ({ seq: x.seq, kind: x.kind, place_name: o.kind === 'ride' && x.place_name.startsWith('Indianapolis International') ? x.place_name : null, status: x.status, done_at: x.done_at })) });
     },
     cc_ride_requests_open() {
       req('owner', 'dispatcher');

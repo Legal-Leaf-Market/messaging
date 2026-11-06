@@ -102,6 +102,18 @@ All of this is enforced in the database: the tables have no direct access, and e
 - Maps use OpenStreetMap, with satellite imagery from Esri. To use Google satellite instead, put a Google Map Tiles key in `GOOGLE_TILES_KEY` in `courier.js` (Google needs a billing account for that key).
 - Navigation opens the Google Maps app, which needs no key.
 
+### Airport rides
+- Accounts and dispatch book rides under **Airport ride**. Anyone can ask for a price at `/messaging/courier.html?ride`, and those requests show on the Board with **Book it**.
+- Rides run through the same quote, dispatch, driver and tracking steps as courier jobs. The driver always sees the rider's name and phone. Up to 7 riders per ride, to match Indiana's 8 or fewer passenger class.
+- The ride rate card and town mileage are at the top of `courier.js` (`AIRPORT_TOWNS`, `RIDE_RATES`). Once the Indiana tariff is filed, keep them matching it.
+- Don't advertise the public ride form until the Indiana passenger authority and the $1.5 million passenger policy are in place.
+
+### Sharing, calendar and box tags
+- Every job has a tracking link (`courier.html?t=...`, 64 random characters) that the customer can text to anyone. It shows progress and the driver's position while the job moves, and no prices, cargo or addresses.
+- **Add to calendar** downloads an .ics file for jobs and rides with a time.
+- **Print box tags** prints one QR tag per box. Drivers check each tag at a stop with **Check a box tag**. Scanning uses the camera where the phone's browser supports it (Chrome on Android), and the job number can be typed anywhere else. A phone camera scanning a tag opens the job.
+- The QR code generator is `qr.js`, the same encoder as `marketing/qr.py`, which made the pamphlet's code. `tests/qr.test.mjs` checks that they match and decode.
+
 ### Updating the supplier list
 Edit `courier/suppliers.mjs` (hand-checked rows) or `courier/catalog-additions.json` (rows from outside research, all marked "Call to confirm"), then run:
 ```
@@ -110,4 +122,4 @@ node scripts/build-courier.mjs ../Heart-Of-Columbus
 The path is optional. With it, the Heart of Columbus snapshot is refreshed too.
 
 ### Tests
-`tests/run.sh` starts a throwaway Postgres, loads every setup file twice, and runs the real SQL through a whole job as every role. It also checks that the demo answers in the same shapes as the database. `node tests/ui.mjs` drives the demo in a browser at desktop and phone width.
+`tests/run.sh` starts a throwaway Postgres, loads every setup file twice, and runs the real SQL through a whole job and a whole ride as every role. It also checks that the demo answers in the same shapes as the database. `node tests/qr.test.mjs` checks the QR encoder. `node tests/ui.mjs` drives the demo in a browser at desktop and phone width, and decodes the printed tags.
