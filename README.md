@@ -72,3 +72,42 @@ Cost: Twilio bills each wake-up as a short outgoing call, about 1 to 2 cents in 
 Phone settings that silence alerts:
 - **iPhone:** the Ring/Silent switch or Action Button must be on Ring, and no Focus or Do Not Disturb can be on. Go to Settings > Notifications > Private Line and turn on **Sounds**.
 - **Android:** go to Settings > Apps > Private Line (or Chrome, if it isn't installed) > Notifications, open the alert category, and pick a **ringtone** as its sound. Android 15 and later can turn down repeated alerts: turn off Settings > Notifications > **Notification cooldown**.
+
+## Private Line Courier (courier, purchasing and NDA portal)
+
+`messaging/courier.html` is the courier side of the same backend. The people already on Private Line become **internal drivers**, and `jake` becomes the owner. Senders, receivers and stores get their own logins, which land on the courier portal and never see the internal lines.
+
+Try it first with nothing set up: open `/messaging/courier.html?demo=1`. It runs on sample data in your browser only, and you can switch between customer, dispatch, driver and store.
+
+### Turn it on
+1. **SQL Editor:** run `setup-courier.sql` once (it is safe to run again). Run it after the other setup files.
+2. **Edge Functions:** deploy `supabase/functions/courier-admin` (it lets the owner create logins from the Admin screen) and redeploy `supabase/functions/push` (it now sends job alerts).
+3. **Sign in as jake** at `/messaging/courier.html` and sign the NDA. Every person signs it once, drivers included.
+4. **Admin:** add each customer company and each store, then create their logins. A store gets a catalog id so its listing shows "In our network".
+5. **Drivers:** each one signs in, signs the NDA, taps **Go on duty**, and turns on alerts.
+
+### Who sees what
+| Role | Sees |
+| --- | --- |
+| Owner, dispatcher | Every job, the fleet map, quotes, store prices, both message threads, Admin (owner only) |
+| Driver | Open jobs while on duty and their own jobs. On a blind job: stops and instructions, never the cargo, the customer name, prices or drawings |
+| Customer | Their own company's jobs, quotes, files, the customer thread, the custody record, the driver's live position while their job is moving and the driver isn't on another customer's job |
+| Store | Their own jobs plus stock requests from other stores, with the part and job number but not who asked |
+
+All of this is enforced in the database: the tables have no direct access, and every read goes through `cc_` functions that shape the answer by role.
+
+### GPS and maps
+- Drivers share location only while on duty, and only the latest position is kept. Going off duty erases it.
+- Phones stop sharing location when the screen locks, so the driver screen asks the phone to stay awake during a run. Background tracking needs a native app later.
+- Maps use OpenStreetMap, with satellite imagery from Esri. To use Google satellite instead, put a Google Map Tiles key in `GOOGLE_TILES_KEY` in `courier.js` (Google needs a billing account for that key).
+- Navigation opens the Google Maps app, which needs no key.
+
+### Updating the supplier list
+Edit `courier/suppliers.mjs` (hand-checked rows) or `courier/catalog-additions.json` (rows from outside research, all marked "Call to confirm"), then run:
+```
+node scripts/build-courier.mjs ../Heart-Of-Columbus
+```
+The path is optional. With it, the Heart of Columbus snapshot is refreshed too.
+
+### Tests
+`tests/run.sh` starts a throwaway Postgres, loads every setup file twice, and runs the real SQL through a whole job as every role. It also checks that the demo answers in the same shapes as the database. `node tests/ui.mjs` drives the demo in a browser at desktop and phone width.

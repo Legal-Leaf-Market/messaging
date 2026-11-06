@@ -1,6 +1,6 @@
 // Supabase Edge Function "push": sends Web Push alerts for Crossroads Private Line.
 //   GET  -> { publicKey }   (VAPID public key the page subscribes with)
-//   POST { type: 'message'|'call'|'missed', id }  (called by a database trigger)
+//   POST { type: 'message'|'call'|'missed'|'job', id }  (called by a database trigger)
 // The VAPID key pair is generated on first run and kept in public.push_config
 // (RLS on, no policies: only this function's service role can read it).
 // JWT verification stays ON: the trigger forwards the sender's own token, the page sends the user's.
@@ -186,12 +186,38 @@ async function phoneWakeup(callId: unknown, callee: string, callerName: string, 
   }
 }
 
+// Hot shot wake-up: one short phone call. It says only the job number, because the call could
+// be on speaker. Skipped when Twilio is not set up or the person saved no number.
+async function phoneJob(userId: string, body: string) {
+  try {
+    if (!TW_SID || !TW_TOKEN || !TW_FROM) return;
+    const { data: ph } = await sb.from("phone_numbers").select("phone").eq("user_id", userId).maybeSingle();
+    if (!ph?.phone) return;
+    const line = `Hot shot alert. ${xml(body)} Open Private Line Courier.`;
+    await twilio("/Calls.json", { To: ph.phone, From: TW_FROM, Timeout: "25", Twiml: `<Response><Say>${line}</Say><Pause length="1"/><Say>${line}</Say></Response>` });
+  } catch (e) {
+    console.error("job phone call failed", e); // never affects the job
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   if (req.method === "GET") return json({ publicKey: (await getVapid()).pub });
 
   const { type, id } = await req.json().catch(() => ({} as Record<string, unknown>));
   const now = Date.now();
+
+  // Courier alerts: a new job, a quote, a delivery. The row holds only a job number, never cargo.
+  if (type === "job") {
+    const { data: n } = await sb.from("cc_notifications").select("user_id,order_id,title,body,urgent,created_at").eq("id", id).maybeSingle();
+    if (!n || now - Date.parse(n.created_at) > 60_000) return json({ skipped: true });
+    const note = { title: n.title, body: n.body, tag: `job-${id}`, url: n.order_id ? `./courier.html?order=${n.order_id}` : "./courier.html", call: !!n.urgent };
+    const { data: jobSubs } = await sb.from("push_subscriptions").select("id,endpoint,p256dh,auth").eq("user_id", n.user_id);
+    const sent = await Promise.allSettled((jobSubs ?? []).map((s: Sub) => send(s, JSON.stringify(note), n.urgent ? 600 : 86400)));
+    // A hot shot also rings the driver's real phone, the same way an unanswered call does.
+    if (n.urgent) await runInBackground(phoneJob(n.user_id, n.body));
+    return json({ sent: sent.filter((r) => r.status === "fulfilled").length, of: jobSubs?.length ?? 0 });
+  }
   let to: string, from: string, ttl = 86400, startedAt = 0;
   let note: { title: string; body: string; tag: string; url: string; call?: boolean };
 

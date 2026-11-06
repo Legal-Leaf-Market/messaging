@@ -177,6 +177,7 @@
       <button class="icon" id="menuBtn" aria-label="Menu" aria-haspopup="true" aria-expanded="false"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></svg></button>
     </header>
     <div id="menu" class="hidden" role="menu">
+      <button id="courierBtn" role="menuitem" class="hidden">Courier jobs</button>
       <button id="alertsBtn" role="menuitem">Alerts</button>
       <button id="phoneBtn" role="menuitem">Ring my phone</button>
       <button id="nameBtn" role="menuitem">Change name</button>
@@ -239,7 +240,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_m_BQ-HC1v3-JANssdXJRlA_9TphYPCM';
 const LOGIN_DOMAIN      = 'crossroadsweddingco.shop'; // users are created as username@this-domain (full email also works)
 /* ================================================================================= */
 
-const APP_VERSION = 'v13';
+const APP_VERSION = 'v14';
 const DAY = 24 * 60 * 60 * 1000;
 const RING_MS = 60000;
 const PEER_PREFIX = 'crwco-line-';
@@ -398,6 +399,16 @@ sb.auth.onAuthStateChange((evt, session) => {
 
 async function start(uid) {
   if (me) return;
+  // Senders, receivers and stores use the courier portal. Only internal lines stay here.
+  // If the courier database isn't set up yet this call fails and nothing changes.
+  try {
+    const { data: cc } = await sb.rpc('cc_me');
+    if (cc) {
+      if (['client', 'store', 'pending'].includes(cc.role)) { location.replace('/messaging/courier.html'); return; }
+      $('courierBtn').classList.remove('hidden');
+      $('courierBtn').onclick = () => { location.href = '/messaging/courier.html'; };
+    }
+  } catch {}
   const { data, error } = await sb.from('profiles').select('*').order('display_name');
   if (error) { alert('Could not load lines: ' + error.message); return; }
   data.forEach(p => lines[p.id] = p);
