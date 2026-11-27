@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; form-action 'none'; base-uri 'none'">
+<title>Legal Leaf Market | Staff delivery preview</title>
+<style>
+:root { color-scheme:light; --ink:#1d3026; --muted:#52645a; --line:#d4dfd3; --green:#254e39; --paper:#f3f5ee; font:16px/1.45 system-ui,sans-serif; color:var(--ink); background:var(--paper); }
+* { box-sizing:border-box; }
+body { margin:0; }
+header { background:#172e24; color:#fff; padding:1rem max(1.25rem, calc((100vw - 1040px)/2)); display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.6rem 1rem; }
+header strong { font-family:Georgia,serif; font-size:1.3rem; }
+header span { color:#dbebdc; font-size:.9rem; }
+main { max-width:1080px; padding:2rem 1.25rem 3rem; margin:auto; }
+h1,h2,p { margin:0; }
+h1 { font:clamp(2.3rem, 6vw, 3.5rem)/1.08 Georgia,serif; }
+h2 { font-size:1.2rem; }
+.intro { color:var(--muted); margin:.65rem 0 1.25rem; }
+.toolbar { display:flex; flex-wrap:wrap; align-items:end; justify-content:space-between; gap:.8rem; border-bottom:1px solid var(--line); padding-bottom:1.25rem; }
+.grid { display:grid; grid-template-columns:1.3fr 1fr; gap:1rem; }
+.card { min-width:0; background:#fff; padding:1.25rem; border:1px solid var(--line); border-radius:.7rem; }
+.card + .card { margin-top:.85rem; }
+.topline,.actions { display:flex; flex-wrap:wrap; gap:.65rem; align-items:center; }
+.topline { justify-content:space-between; margin-bottom:.8rem; }
+.pill { background:#e5eee3; color:#234432; font-size:.8rem; font-weight:700; padding:.22rem .58rem; border-radius:1rem; }
+.details { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.75rem 1rem; margin:1rem 0; }
+dt, label { color:var(--muted); font-size:.84rem; font-weight:650; }
+dd { margin:.14rem 0 0; overflow-wrap:anywhere; }
+label { display:grid; gap:.3rem; }
+input, select, button { min-height:42px; border-radius:.4rem; font:inherit; }
+input, select { border:1px solid #91a493; color:var(--ink); background:white; padding:.42rem; width:100%; }
+button { cursor:pointer; background:var(--green); color:white; border:1px solid var(--green); font-weight:650; padding:.48rem .78rem; }
+button.secondary { background:white; color:var(--green); }
+button:disabled { opacity:.55; cursor:default; }
+:focus-visible { outline:3px solid #aa681a; outline-offset:3px; }
+.form { display:grid; gap:.7rem; margin:1rem 0 0; }
+.check { display:flex; align-items:center; gap:.5rem; }
+.check input { width:1rem; margin:0; min-height:1rem; }
+#notice { min-height:1.65rem; margin:.7rem 0; color:var(--green); font-weight:650; }
+.subtle, .timeline { color:var(--muted); }
+.timeline { padding-left:1.2rem; margin:.65rem 0 0; }
+.timeline li + li { margin-top:.32rem; }
+@media(max-width:700px) { .grid { grid-template-columns:1fr; } main { padding-top:1.4rem; } .card { padding:1rem; } }
+</style>
+</head>
+<body>
+<header><strong>Legal Leaf Market</strong><span>Private Line Courier · Sample data</span></header>
+<main>
+<h1>Staff deliveries</h1>
+<p class="intro">Review a fictional Columbus order from assignment through cash reconciliation.</p>
+<div class="toolbar">
+  <label>Preview role<select id="role" aria-label="Preview role">
+    <option value="dispatch">Jacob · Dispatch / Orders sheet</option>
+    <option value="nic">Nic · Staff driver</option>
+    <option value="anthony">Anthony · Staff driver</option>
+    <option value="outside">Outside courier</option>
+    <option value="visitor">Signed-out visitor</option>
+  </select></label>
+  <button class="secondary" id="reset">Reset sample</button>
+</div>
+<p id="notice" role="status"></p>
+<div id="content"></div>
+</main>
+<script>
+'use strict';
+const order = { number: 'LL-SAMPLE-101', amountCents: 2140 };
+const drivers = { nic: 'Nic', anthony: 'Anthony' };
+const reasons = {
+  recipient_unavailable: 'Recipient unavailable',
+  id_check_failed: 'ID check failed',
+  cash_short_or_missing: 'Cash short or missing'
+};
+const labels = { assigned: 'Assigned', picked_up: 'Picked up', handed_off: 'Handoff complete', failed: 'Failed attempt', cancelled: 'Cancelled', rescheduled: 'Rescheduled' };
+const windows = ['December 1 · 4–6 PM', 'December 2 · 10 AM–noon', 'December 2 · 4–6 PM'];
+const role = document.querySelector('#role');
+const content = document.querySelector('#content');
+const notice = document.querySelector('#notice');
+const initial = () => ({ job: null, sheetRef: null, retail: 'Confirmed', reconciliation: null });
+let state = initial();
+
+function node(tag, text, attrs = {}) {
+  const el = document.createElement(tag);
+  for (const [key, value] of Object.entries(attrs)) el.setAttribute(key, value);
+  if (text !== null) el.textContent = text;
+  return el;
+}
+function button(text, handler, secondary = false) {
+  const el = node('button', text, { type: 'button', class: secondary ? 'secondary' : '' });
+  el.addEventListener('click', handler);
+  return el;
+}
+function select(label, choices, selected) {
+  const field = node('label', label);
+  const input = node('select', null, { 'aria-label': label });
+  for (const [value, name] of Object.entries(choices)) input.append(node('option', name, { value }));
+  if (selected !== undefined) input.value = selected;
+  field.append(input);
+  return { field, input };
+}
+function details(values) {
+  const list = node('dl', null, { class: 'details' });
+  for (const [term, value] of Object.entries(values)) {
+    const item = node('div', null);
+    item.append(node('dt', term), node('dd', value));
+    list.append(item);
+  }
+  return list;
+}
+function card(title, status) {
+  const section = node('section', null, { class: 'card' });
+  const heading = node('div', null, { class: 'topline' });
+  heading.append(node('h2', title));
+  if (status) heading.append(node('span', status, { class: 'pill' }));
+  section.append(heading);
+  return section;
+}
+function actions(...buttons) {
+  const group = node('div', null, { class: 'actions' });
+  group.append(...buttons);
+  return group;
+}
+function done(message) {
+  render();
+  notice.textContent = message;
+}
+function event(outcome, reason) {
+  state.job.events.push({ outcome, reason, attempt: state.job.attempt });
+}
+function assign(driver, window, failure) {
+  const existing = state.job !== null;
+  if (!existing) {
+    state.job = { id: 'LL-DEMO-JOB-101', driver, window, attempt: 1, status: 'assigned', events: [] };
+    event('assigned');
+  }
+  if (failure) {
+    done(failure === 'timeout' ? 'Simulated timeout after job creation. Retry to recover the job reference.' :
+      'Simulated Orders sheet writeback failure. Retry to recover the job reference.');
+    return;
+  }
+  state.sheetRef = state.job.id;
+  done(existing ? 'Existing job linked to the Orders sheet.' : 'Driver assigned and job linked to the Orders sheet.');
+}
+function assignmentCard(job) {
+  const section = card(job ? 'Manage attempt' : 'Assign delivery');
+  const driver = select('Staff driver', drivers, job?.driver);
+  const window = select('Agreed delivery window (Eastern)', windows, job?.window);
+  const fields = node('div', null, { class: 'form' });
+  fields.append(driver.field, window.field);
+  if (job) {
+    const reschedule = button('Reschedule / reassign', () => {
+      Object.assign(job, { driver: driver.input.value, window: window.input.value, status: 'assigned', attempt: job.attempt + 1 });
+      event('rescheduled');
+      done('New attempt scheduled on the same job.');
+    });
+    const cancel = button('Cancel delivery', () => {
+      job.status = 'cancelled';
+      event('cancelled');
+      done('Delivery cancelled. Review the retail order in the Orders sheet.');
+    }, true);
+    fields.append(actions(reschedule, cancel));
+  } else {
+    const failure = select('Test a retry', { none: 'Normal assignment', timeout: 'Timeout after job creation', sheet: 'Orders sheet writeback failure' });
+    fields.append(failure.field, button('Assign delivery', () => assign(driver.input.value, window.input.value, failure.input.value === 'none' ? null : failure.input.value)));
+  }
+  section.append(fields);
+  return section;
+}
+function retailCard() {
+  const section = card('Orders sheet', state.retail);
+  const money = cents => '$' + (cents / 100).toFixed(2);
+  section.append(details({
+    'Order number': order.number, 'Cash due': money(order.amountCents),
+    'Sample merchandise': 'Market tote and postcard', 'Delivered sales': state.retail === 'Delivered' ? money(order.amountCents) : '$0.00',
+    'Courier job': state.sheetRef || 'Awaiting assignment'
+  }));
+  if (state.sheetRef) {
+    const link = node('a', 'View courier job', { href: '#job' });
+    section.append(link);
+  }
+  if (state.reconciliation) {
+    const { id, cents, attempt } = state.reconciliation;
+    section.append(details({ 'Reconciled attempt': String(attempt), 'Recorded ID check': id ? 'Passed' : 'Failed', 'Cash received': money(cents), 'Discrepancy': money(order.amountCents - cents) }));
+  }
+  if (!['handed_off', 'failed'].includes(state.job?.status) || state.retail === 'Delivered') return section;
+
+  const fields = node('form', null, { class: 'form' });
+  const check = select('Doorstep ID check', { '': 'Select outcome', pass: 'Passed', fail: 'Failed' });
+  const label = node('label', 'Cash received');
+  const amount = node('input', null, { type: 'number', step: '0.01', min: '0', max: '9999', inputmode: 'decimal', required: '' });
+  label.append(amount);
+  check.input.required = true;
+  fields.append(check.field, label, node('button', 'Record reconciliation', { type: 'submit' }));
+  fields.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const cents = Math.round(Number(amount.value) * 100);
+    const id = check.input.value === 'pass';
+    state.reconciliation = { id, cents, attempt: state.job.attempt };
+    const delivered = state.job.status === 'handed_off' && id && cents === order.amountCents;
+    state.retail = delivered ? 'Delivered' : 'Confirmed';
+    done(delivered ? 'Handoff, ID and full cash verified. Retail order marked Delivered.' :
+      'Discrepancy recorded. Retail order remains open and excluded from delivered sales.');
+  });
+  section.append(fields);
+  return section;
+}
+function courierCard(job, dispatch) {
+  const section = card('Courier job', labels[job.status]);
+  section.id = 'job';
+  section.append(details({
+    'Job reference': job.id, 'Order number': order.number, 'Driver': drivers[job.driver],
+    'Agreed window (Eastern)': windows[job.window], 'Pickup': 'Legal Leaf Market · sample pickup desk',
+    'Drop-off': '100 Example Lane, Columbus, IN', 'Recipient': 'Taylor Sample', 'Contact': '812-555-0101',
+    'Instructions': 'Use the front entrance.'
+  }));
+  if (!dispatch && job.status === 'assigned') {
+    section.append(button('Record pickup', () => {
+      job.status = 'picked_up';
+      event('picked_up');
+      done('Pickup recorded.');
+    }));
+  }
+  if (!dispatch && job.status === 'picked_up') {
+    const reason = select('Failed attempt reason', reasons);
+    const ready = node('label', 'ID matched and full cash collected', { class: 'check' });
+    const confirm = node('input', null, { type: 'checkbox' });
+    ready.prepend(confirm);
+    const handOff = button('Complete handoff', () => {
+      if (!confirm.checked) return;
+      job.status = 'handed_off';
+      event('handed_off');
+      done('Handoff recorded. Dispatch can reconcile the retail order.');
+    });
+    handOff.disabled = true;
+    confirm.addEventListener('change', () => { handOff.disabled = !confirm.checked; });
+    const fields = node('div', null, { class: 'form' });
+    fields.append(ready, actions(handOff), reason.field, actions(button('Record failed attempt', () => {
+      job.status = 'failed';
+      event('failed', reason.input.value);
+      done('Failed attempt recorded. Dispatch can reschedule or cancel.');
+    }, true)));
+    section.append(fields);
+  }
+  const list = node('ol', null, { class: 'timeline', 'aria-label': 'Custody history' });
+  for (const entry of job.events) {
+    list.append(node('li', 'Attempt ' + entry.attempt + ' · ' + labels[entry.outcome] +
+      (entry.reason ? ' · ' + reasons[entry.reason] : '')));
+  }
+  section.append(list);
+  return section;
+}
+function render() {
+  const job = state.job;
+  content.replaceChildren();
+  if (role.value === 'dispatch') {
+    const grid = node('div', null, { class: 'grid' });
+    const left = node('div', null);
+    const right = node('div', null);
+    left.append(retailCard());
+    if (!state.sheetRef) {
+      if (job) {
+        const retry = card('Link courier job');
+        retry.append(button('Retry assignment writeback', () => assign(job.driver, job.window, null)));
+        left.append(retry);
+      } else {
+        left.append(assignmentCard(null));
+      }
+    }
+    if (job) {
+      right.append(courierCard(job, true));
+      if (state.sheetRef && ['assigned', 'failed'].includes(job.status)) right.append(assignmentCard(job));
+    } else {
+      const empty = card('Courier job');
+      empty.append(node('p', 'Assign a driver to start the custody history.', { class: 'subtle' }));
+      right.append(empty);
+    }
+    grid.append(left, right);
+    content.append(grid);
+    return;
+  }
+  if (job && job.driver === role.value) {
+    content.append(courierCard(job, false));
+    if (job.status === 'assigned') notice.textContent = 'Assignment alert · A staff delivery is assigned to you.';
+    return;
+  }
+  const empty = card(drivers[role.value] ? 'No assigned deliveries' : 'Staff access required');
+  empty.append(node('p', drivers[role.value] ? 'Your assigned jobs will appear here.' :
+    'This sample role has no access to Legal Leaf staff jobs.', { class: 'subtle' }));
+  content.append(empty);
+}
+role.addEventListener('change', () => { notice.textContent = ''; render(); });
+document.querySelector('#reset').addEventListener('click', () => {
+  state = initial();
+  role.value = 'dispatch';
+  done('Sample reset.');
+});
+render();
+</script>
+</body>
+</html>
