@@ -20,6 +20,8 @@ node --test tests/legal-leaf-preview.test.mjs
 
 The live Google sheet, customer checkout, Supabase project, and push endpoint are outside this preview. A hosted staging connection needs a staff sign-in and sheet adapter, plus an isolated push endpoint. Verify the in-house operating policy and applicable product and cash requirements before enabling any real order.
 
-## Future fleet opportunity
+## Heart of Columbus pickup and delivery roadmap
 
-The Columbus DoorDash pickup operation is a starting point for exploring a company-managed fleet. Workshop the operating model with LegalEase before expanding. The design goals are to reduce liability, give drivers meaningful control over their work, and give participating local businesses a say in how pickups and deliveries run.
+1. **Direct pickup through Heart of Columbus.** Heart of Columbus already has roughly 150 businesses where customers can book or order ahead, including many restaurants. Promote direct ordering and pickup as a local alternative to DoorDash pickup. Shopify makes it easier to add order-ahead for merchants already using it.
+2. **Internal delivery through Legal Leaf Market.** Use Legal Leaf as the pilot for dispatch, driver assignment, pickup, handoff, and exception handling. Work through the workflow internally before opening it to other businesses.
+3. **Shared delivery across Columbus.** Explore a private local fleet that can serve restaurants and other participating Heart of Columbus businesses and compete locally with DoorDash and Uber Eats. Workshop the staffing and operating model with LegalEase before expanding. Evaluate liability, driver autonomy, and how participating businesses can control their pickup and delivery operations.
