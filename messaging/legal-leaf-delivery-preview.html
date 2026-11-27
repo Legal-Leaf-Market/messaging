@@ -51,7 +51,7 @@ button:disabled { opacity:.55; cursor:default; }
 <h1>Staff deliveries</h1>
 <p class="intro">Review a fictional Columbus order from assignment through cash reconciliation.</p>
 <div class="toolbar">
-  <label>Preview role<select id="role">
+  <label>Preview role<select id="role" aria-label="Preview role">
     <option value="dispatch">Jacob · Dispatch / Orders sheet</option>
     <option value="nic">Nic · Staff driver</option>
     <option value="anthony">Anthony · Staff driver</option>
@@ -93,7 +93,7 @@ function button(text, handler, secondary = false) {
 }
 function select(label, choices, selected) {
   const field = node('label', label);
-  const input = node('select', null);
+  const input = node('select', null, { 'aria-label': label });
   for (const [value, name] of Object.entries(choices)) input.append(node('option', name, { value }));
   if (selected !== undefined) input.value = selected;
   field.append(input);
